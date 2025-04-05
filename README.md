@@ -1,69 +1,129 @@
-# Welcome to your Lovable project
 
-## Project info
+# UrbanCare
 
-**URL**: https://lovable.dev/projects/08165ac0-dda0-4225-88f4-613965dc223e
+![UrbanCare Logo](public/favicon.ico)
 
-## How can I edit this code?
+## Overview
 
-There are several ways of editing your application.
+UrbanCare is a community-driven platform that empowers citizens to report and track urban issues in their neighborhoods. The platform connects residents with local authorities, enabling efficient communication and resolution of community problems such as potholes, broken street lights, garbage collection issues, and more.
 
-**Use Lovable**
+## Features
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/08165ac0-dda0-4225-88f4-613965dc223e) and start prompting.
+- **Issue Reporting**: Users can report problems in their neighborhoods with photos, descriptions, and location data.
+- **Issue Tracking**: Real-time status updates on reported issues.
+- **Community Events**: Information about upcoming community events and initiatives.
+- **User Profiles**: Personalized user accounts with customizable profiles.
+- **Authentication**: Secure login and registration system powered by Firebase.
+- **Responsive Design**: Fully responsive interface that works on all devices.
 
-Changes made via Lovable will be committed automatically to this repo.
+## Technology Stack
 
-**Use your preferred IDE**
+- React 18 with TypeScript
+- Vite for fast development and building
+- Tailwind CSS for styling
+- shadcn/ui for UI components
+- Firebase Authentication for user management
+- Firestore for database operations
+- React Router for navigation
+- React Query for data fetching
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Live Demo
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Access the live version of UrbanCare at: [https://lovable.dev/projects/08165ac0-dda0-4225-88f4-613965dc223e](https://lovable.dev/projects/08165ac0-dda0-4225-88f4-613965dc223e)
 
-Follow these steps:
+## Getting Started
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Prerequisites
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+- Node.js (v16 or higher)
+- npm or yarn package manager
+- Git
 
-# Step 3: Install the necessary dependencies.
-npm i
+### Installation
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/urbancare.git
+cd urbancare
 ```
 
-**Edit a file directly in GitHub**
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+3. Create a `.env` file in the root directory with your Firebase configuration:
+```
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+```
 
-**Use GitHub Codespaces**
+4. Start the development server:
+```bash
+npm run dev
+# or
+yarn dev
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+5. Open your browser and navigate to `http://localhost:5173`
 
-## What technologies are used for this project?
+### Building for Production
 
-This project is built with .
+To create a production build, run:
+```bash
+npm run build
+# or
+yarn build
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+The build artifacts will be stored in the `dist` directory.
 
-## How can I deploy this project?
+## Project Structure
 
-Simply open [Lovable](https://lovable.dev/projects/08165ac0-dda0-4225-88f4-613965dc223e) and click on Share -> Publish.
+```
+├── public/             # Public assets
+├── src/                # Source code
+│   ├── components/     # Reusable UI components
+│   ├── contexts/       # React contexts (e.g., AuthContext)
+│   ├── hooks/          # Custom React hooks
+│   ├── lib/            # Utility functions and configurations
+│   ├── pages/          # Page components
+│   ├── services/       # API services
+│   ├── App.tsx         # Main App component
+│   └── main.tsx        # Entry point
+├── .env                # Environment variables (not in repo)
+└── package.json        # Project dependencies
+```
 
-## I want to use a custom domain - is that possible?
+## Contributing
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgements
+
+- [Lovable](https://lovable.dev) - The AI-powered platform used for development
+- [shadcn/ui](https://ui.shadcn.com/) - Beautiful, accessible UI components
+- [Firebase](https://firebase.google.com/) - Authentication and database services
+- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
+- [React](https://reactjs.org/) - JavaScript library for building user interfaces
+
+## Contact
+
+If you have any questions or feedback, please reach out to us at:
+
+- Project Link: [https://lovable.dev/projects/08165ac0-dda0-4225-88f4-613965dc223e](https://lovable.dev/projects/08165ac0-dda0-4225-88f4-613965dc223e)
+- Your Email: your.email@example.com
