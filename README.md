@@ -27,9 +27,7 @@ UrbanCare is a community-driven platform that empowers citizens to report and tr
 - React Router for navigation
 - React Query for data fetching
 
-## Live Demo
 
-Access the live version of UrbanCare at: [https://lovable.dev/projects/08165ac0-dda0-4225-88f4-613965dc223e](https://lovable.dev/projects/08165ac0-dda0-4225-88f4-613965dc223e)
 
 ## Getting Started
 
@@ -115,7 +113,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgements
 
-- [Lovable](https://lovable.dev) - The AI-powered platform used for development
 - [shadcn/ui](https://ui.shadcn.com/) - Beautiful, accessible UI components
 - [Firebase](https://firebase.google.com/) - Authentication and database services
 - [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
