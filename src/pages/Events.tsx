@@ -1,18 +1,19 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { MapPin, Calendar, Users, Clock, ArrowRight, User } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import { useAuth } from "@/contexts/AuthContext";
-import { getEvents, createEvent, EventData } from "@/services/firestoreService";
+import { getEvents, createEvent, EventData, getPaginatedEvents } from "@/services/firestoreService";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from 'react-router-dom';
 
 const Events = () => {
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const [showCreateEventForm, setShowCreateEventForm] = useState(false);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   
   const [newEvent, setNewEvent] = useState({
     title: '',
@@ -23,11 +24,52 @@ const Events = () => {
     categories: ''
   });
 
-  // Fetch events using React Query
-  const { data: eventsData = [], isLoading, error } = useQuery({
-    queryKey: ['events'],
-    queryFn: getEvents
-  });
+  const EVENTS_PAGE_SIZE = 10;
+
+  const [eventsData, setEventsData] = useState<EventData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
+  // Fetch first page on mount
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+    setError(null);
+    getPaginatedEvents(EVENTS_PAGE_SIZE)
+      .then(({ events, lastVisible }) => {
+        if (isMounted) {
+          setEventsData(events);
+          setLastVisible(lastVisible);
+          setHasMore(events.length === EVENTS_PAGE_SIZE);
+        }
+      })
+      .catch((err) => {
+        setError(err.message || "Failed to load events");
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+    return () => { isMounted = false; };
+  }, []);
+
+  const loadMoreEvents = async () => {
+    if (!lastVisible) return;
+    setIsLoadingMore(true);
+    setError(null);
+    try {
+      const { events, lastVisible: newLastVisible } = await getPaginatedEvents(EVENTS_PAGE_SIZE, lastVisible);
+      setEventsData((prev) => [...prev, ...events]);
+      setLastVisible(newLastVisible);
+      setHasMore(events.length === EVENTS_PAGE_SIZE);
+    } catch (err: any) {
+      setError(err.message || "Failed to load more events");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   // Create event mutation
   const createEventMutation = useMutation({
@@ -117,7 +159,7 @@ const Events = () => {
         <div className="pt-32 pb-20 px-4 md:px-6 container mx-auto">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-4xl md:text-5xl font-semibold mb-6">Community Events</h1>
-            <p className="text-xl text-muted-foreground mb-12">Error loading events. Please try again later.</p>
+            <p className="text-xl text-muted-foreground mb-12">Error loading events: {error}</p>
           </div>
         </div>
       </div>
@@ -307,18 +349,20 @@ const Events = () => {
                           </div>
                         ))}
                       </div>
-                      <Button variant="link" onClick={() => {
-                        toast({
-                          title: "Event Details",
-                          description: `Viewing details for ${event.title}`,
-                        });
-                      }}>
+                      <Button variant="link" onClick={() => navigate(`/events/${event.id}`)}>
                         View Details
                       </Button>
                     </div>
                   </div>
                 </div>
               ))
+            )}
+            {hasMore && (
+              <div className="flex justify-center mt-6">
+                <Button onClick={loadMoreEvents} disabled={isLoadingMore}>
+                  {isLoadingMore ? "Loading..." : "Load More"}
+                </Button>
+              </div>
             )}
           </div>
         </div>

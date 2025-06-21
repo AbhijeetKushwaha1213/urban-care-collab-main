@@ -1,4 +1,3 @@
-
 import {
   addDoc,
   collection,
@@ -12,7 +11,9 @@ import {
   orderBy,
   serverTimestamp,
   Timestamp,
-  DocumentData
+  DocumentData,
+  startAfter,
+  limit
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -161,4 +162,30 @@ export const getUserIssues = async (userId: string) => {
     id: doc.id,
     ...doc.data()
   })) as IssueData[];
+};
+
+// Get paginated events
+export const getPaginatedEvents = async (limitCount: number, lastVisible?: any) => {
+  let eventsQuery;
+  if (lastVisible) {
+    eventsQuery = query(
+      eventsCollection,
+      orderBy('createdAt', 'desc'),
+      startAfter(lastVisible),
+      limit(limitCount)
+    );
+  } else {
+    eventsQuery = query(
+      eventsCollection,
+      orderBy('createdAt', 'desc'),
+      limit(limitCount)
+    );
+  }
+  const eventsSnapshot = await getDocs(eventsQuery);
+  const events = eventsSnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as EventData[];
+  const lastDoc = eventsSnapshot.docs[eventsSnapshot.docs.length - 1];
+  return { events, lastVisible: lastDoc };
 };
