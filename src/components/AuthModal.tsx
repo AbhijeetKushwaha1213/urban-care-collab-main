@@ -1,9 +1,10 @@
 
 import React, { useState } from 'react';
-import { X, Mail, Lock, User, ArrowRight, Globe } from 'lucide-react';
+import { X, Mail, Lock, User, ArrowRight, Globe, Bug } from 'lucide-react';
 import Button from './Button';
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { testFirebaseConnection, testAuthConnection } from "@/lib/firebase";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -16,6 +17,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [debugLoading, setDebugLoading] = useState(false);
   const { toast } = useToast();
   const { signIn, signUp, signInWithGoogle } = useAuth();
 
@@ -45,13 +48,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       }
     } catch (error) {
       // Error handling is done in the context
+      console.error('Auth error:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
-    setIsLoading(true);
+    setGoogleLoading(true);
     try {
       await signInWithGoogle();
       toast({
@@ -61,22 +65,67 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       onClose();
     } catch (error) {
       // Error handling is done in the context
+      console.error('Google auth error:', error);
     } finally {
-      setIsLoading(false);
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleDebugTest = async () => {
+    setDebugLoading(true);
+    try {
+      const firestoreOk = await testFirebaseConnection();
+      const authOk = await testAuthConnection();
+      
+      if (firestoreOk && authOk) {
+        toast({
+          title: "Connection Test",
+          description: "Firebase connections are working properly!",
+        });
+      } else {
+        toast({
+          title: "Connection Test",
+          description: "Some Firebase connections failed. Check console for details.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Debug test error:', error);
+      toast({
+        title: "Connection Test",
+        description: "Failed to test connections. Check console for details.",
+        variant: "destructive",
+      });
+    } finally {
+      setDebugLoading(false);
     }
   };
 
   const toggleMode = () => {
     setIsSignIn(!isSignIn);
+    // Clear form when switching modes
+    setEmail('');
+    setPassword('');
+    setName('');
+  };
+
+  const handleClose = () => {
+    // Clear form when closing
+    setEmail('');
+    setPassword('');
+    setName('');
+    setIsLoading(false);
+    setGoogleLoading(false);
+    onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-xs" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-xs" onClick={handleClose} />
       
       <div className="relative bg-background rounded-xl shadow-elevated max-w-md w-full mx-auto animate-scale-in overflow-hidden">
         <button 
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-4 right-4 p-1 rounded-full hover:bg-secondary transition-colors"
         >
           <X className="h-5 w-5" />
@@ -110,7 +159,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     onChange={(e) => setName(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
                     placeholder="Your name"
-                    required
+                    required={!isSignIn}
+                    disabled={isLoading || googleLoading}
                   />
                 </div>
               </div>
@@ -132,6 +182,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
                   placeholder="Your email"
                   required
+                  disabled={isLoading || googleLoading}
                 />
               </div>
             </div>
@@ -152,6 +203,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
                   placeholder="Your password"
                   required
+                  disabled={isLoading || googleLoading}
+                  minLength={6}
                 />
               </div>
             </div>
@@ -164,7 +217,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               </div>
             )}
             
-            <Button className="w-full group" size="lg" isLoading={isLoading}>
+            <Button 
+              className="w-full group" 
+              size="lg" 
+              isLoading={isLoading}
+              disabled={googleLoading}
+            >
               <span>{isSignIn ? 'Sign in' : 'Create account'}</span>
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
@@ -180,11 +238,27 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               className="w-full" 
               size="lg" 
               onClick={handleGoogleSignIn}
+              isLoading={googleLoading}
               disabled={isLoading}
             >
               <Globe className="mr-2 h-4 w-4" />
               <span>Google</span>
             </Button>
+
+            {/* Debug button for development */}
+            {process.env.NODE_ENV === 'development' && (
+              <Button 
+                variant="ghost" 
+                className="w-full text-xs" 
+                size="sm" 
+                onClick={handleDebugTest}
+                isLoading={debugLoading}
+                disabled={isLoading || googleLoading}
+              >
+                <Bug className="mr-2 h-3 w-3" />
+                <span>Test Firebase Connection</span>
+              </Button>
+            )}
           </form>
           
           <div className="mt-6 text-center text-sm">
@@ -194,6 +268,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             <button 
               className="text-primary hover:underline" 
               onClick={toggleMode}
+              disabled={isLoading || googleLoading}
             >
               {isSignIn ? 'Sign up' : 'Sign in'}
             </button>

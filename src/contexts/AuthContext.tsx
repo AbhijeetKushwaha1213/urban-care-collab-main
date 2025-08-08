@@ -8,7 +8,9 @@ import {
   onAuthStateChanged,
   updateProfile,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from "@/components/ui/use-toast";
@@ -43,6 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('Auth state changed:', user ? 'User logged in' : 'No user');
       setCurrentUser(user);
       
       if (user) {
@@ -51,6 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userProfileDoc = await getDoc(doc(db, "userProfiles", user.uid));
           // If user has no profile, mark as new user
           setIsNewUser(!userProfileDoc.exists());
+          console.log('User profile exists:', userProfileDoc.exists());
         } catch (error) {
           console.error("Error checking user profile:", error);
         }
@@ -59,11 +63,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
+    // Check for redirect result (for Google Auth)
+    const checkRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          console.log('Redirect result found:', result.user.email);
+          // Handle the redirect result
+          const userProfileDoc = await getDoc(doc(db, "userProfiles", result.user.uid));
+          if (!userProfileDoc.exists()) {
+            setIsNewUser(true);
+            await setDoc(doc(db, "userProfiles", result.user.uid), {
+              email: result.user.email,
+              fullName: result.user.displayName,
+              createdAt: new Date(),
+              isOnboardingComplete: false,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error checking redirect result:", error);
+      }
+    };
+
+    checkRedirectResult();
+
     return unsubscribe;
   }, []);
 
   const signUp = async (email: string, password: string, name: string) => {
     try {
+      console.log('Attempting to sign up:', email);
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       // Update the user profile with the name
       if (userCredential.user) {
@@ -79,11 +109,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: new Date(),
           isOnboardingComplete: false,
         });
+        
+        console.log('User signed up successfully');
       }
     } catch (error: any) {
+      console.error("Sign up error:", error);
+      let errorMessage = "Sign up failed";
+      
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = "An account with this email already exists";
+          break;
+        case 'auth/invalid-email':
+          errorMessage = "Please enter a valid email address";
+          break;
+        case 'auth/weak-password':
+          errorMessage = "Password should be at least 6 characters";
+          break;
+        default:
+          errorMessage = error.message || "Sign up failed";
+      }
+      
       toast({
         title: "Sign up failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
       throw error;
@@ -92,11 +141,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
+      console.log('Attempting to sign in:', email);
       await signInWithEmailAndPassword(auth, email, password);
+      console.log('User signed in successfully');
     } catch (error: any) {
+      console.error("Sign in error:", error);
+      let errorMessage = "Sign in failed";
+      
+      switch (error.code) {
+        case 'auth/user-not-found':
+          errorMessage = "No account found with this email";
+          break;
+        case 'auth/wrong-password':
+          errorMessage = "Incorrect password";
+          break;
+        case 'auth/invalid-email':
+          errorMessage = "Please enter a valid email address";
+          break;
+        case 'auth/user-disabled':
+          errorMessage = "This account has been disabled";
+          break;
+        default:
+          errorMessage = error.message || "Sign in failed";
+      }
+      
       toast({
         title: "Sign in failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
       throw error;
@@ -105,28 +176,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     try {
+      console.log('Attempting Google sign in');
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
       
-      // Check if this is the first time this Google user is signing in
-      const userProfileDoc = await getDoc(doc(db, "userProfiles", result.user.uid));
+      // Add custom parameters
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
       
-      if (!userProfileDoc.exists()) {
-        // This is a new Google user, mark as needing onboarding
-        setIsNewUser(true);
+      // Try popup first, fallback to redirect
+      let result;
+      try {
+        result = await signInWithPopup(auth, provider);
+        console.log('Google sign in successful via popup');
+      } catch (popupError: any) {
+        console.log('Popup failed, trying redirect:', popupError.code);
+        if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
+          // Fallback to redirect
+          await signInWithRedirect(auth, provider);
+          return; // Redirect will handle the result
+        }
+        throw popupError;
+      }
+      
+      // Handle popup result
+      if (result) {
+        // Check if this is the first time this Google user is signing in
+        const userProfileDoc = await getDoc(doc(db, "userProfiles", result.user.uid));
         
-        // Create a basic user document
-        await setDoc(doc(db, "userProfiles", result.user.uid), {
-          email: result.user.email,
-          fullName: result.user.displayName,
-          createdAt: new Date(),
-          isOnboardingComplete: false,
-        });
+        if (!userProfileDoc.exists()) {
+          // This is a new Google user, mark as needing onboarding
+          setIsNewUser(true);
+          
+          // Create a basic user document
+          await setDoc(doc(db, "userProfiles", result.user.uid), {
+            email: result.user.email,
+            fullName: result.user.displayName,
+            createdAt: new Date(),
+            isOnboardingComplete: false,
+          });
+        }
       }
     } catch (error: any) {
+      console.error("Google sign in error:", error);
+      let errorMessage = "Google sign in failed";
+      
+      switch (error.code) {
+        case 'auth/popup-blocked':
+          errorMessage = "Popup was blocked. Please allow popups for this site.";
+          break;
+        case 'auth/popup-closed-by-user':
+          errorMessage = "Sign in was cancelled";
+          break;
+        case 'auth/account-exists-with-different-credential':
+          errorMessage = "An account already exists with this email using a different sign-in method";
+          break;
+        default:
+          errorMessage = error.message || "Google sign in failed";
+      }
+      
       toast({
         title: "Google sign in failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
       throw error;
@@ -135,8 +246,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logOut = async () => {
     try {
+      console.log('Attempting to sign out');
       await signOut(auth);
+      console.log('User signed out successfully');
     } catch (error: any) {
+      console.error("Sign out error:", error);
       toast({
         title: "Sign out failed",
         description: error.message,
