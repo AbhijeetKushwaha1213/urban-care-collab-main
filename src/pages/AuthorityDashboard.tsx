@@ -35,6 +35,8 @@ import { toast } from '@/hooks/use-toast';
 import { getDashboardStats, getIssuesWithPriority, updateIssueStatus as updateStatus } from '@/services/authorityService';
 import NotificationCenter from '@/components/NotificationCenter';
 import IssueDetailModal from '@/components/IssueDetailModal';
+import IssueMap from '@/components/IssueMap';
+import SimpleMap from '@/components/SimpleMap';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -673,17 +675,15 @@ export default function AuthorityDashboard() {
                   <MapPin className="h-5 w-5 mr-2 text-blue-500" />
                   Interactive Issue Map
                 </CardTitle>
+                <p className="text-sm text-gray-600 mt-1">
+                  Real-time visualization of all reported issues with priority-based color coding
+                </p>
               </CardHeader>
               <CardContent>
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg h-96 flex items-center justify-center border-2 border-dashed border-blue-200">
-                  <div className="text-center text-blue-600">
-                    <MapPin className="h-16 w-16 mx-auto mb-4 opacity-60" />
-                    <h3 className="text-lg font-semibold mb-2">Interactive Map Coming Soon</h3>
-                    <p className="text-sm opacity-80 max-w-md">
-                      Real-time visualization of all reported issues with clustering, filtering, and heat map capabilities.
-                    </p>
-                  </div>
-                </div>
+                <SimpleMap 
+                  issues={filteredIssues} 
+                  onIssueSelect={handleViewIssue}
+                />
               </CardContent>
             </Card>
           </TabsContent>
