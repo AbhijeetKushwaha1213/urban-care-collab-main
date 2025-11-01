@@ -28,7 +28,9 @@ import {
   Download,
   User,
   LogOut,
-  Edit
+  Edit,
+  UserPlus,
+  Send
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
@@ -99,6 +101,28 @@ export default function AuthorityDashboard() {
   const [tasksAssigned, setTasksAssigned] = useState(0);
   const [tasksSolved, setTasksSolved] = useState(0);
 
+  // Assignment related state
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [selectedIssueForAssignment, setSelectedIssueForAssignment] = useState<Issue | null>(null);
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [assignmentNotes, setAssignmentNotes] = useState('');
+  const [isAssigning, setIsAssigning] = useState(false);
+
+  // Department list for assignment
+  const departments = [
+    'Public Works',
+    'Transportation',
+    'Water & Sewerage', 
+    'Electricity',
+    'Health Department',
+    'Environmental Services',
+    'Parks & Recreation',
+    'Building & Planning',
+    'Police Department',
+    'Fire Department',
+    'Emergency Services'
+  ];
+
   useEffect(() => {
     fetchDashboardData();
     fetchAuthorityProfile();
@@ -106,7 +130,40 @@ export default function AuthorityDashboard() {
     // Auto-refresh every 30 seconds
     const interval = setInterval(fetchDashboardData, 30000);
     
-    return () => clearInterval(interval);
+    // Real-time subscription for new issues
+    const subscription = supabase
+      .channel('new-issues')
+      .on('postgres_changes', 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'issues'
+        }, 
+        (payload) => {
+          console.log('New issue reported:', payload);
+          if (payload.new) {
+            const newIssue = payload.new as Issue;
+            
+            // Add new issue to the list
+            setIssues(prev => [newIssue, ...prev]);
+            
+            // Show notification for new issue
+            toast({
+              title: "🚨 New Issue Reported",
+              description: `${newIssue.title} - ${newIssue.category}`,
+            });
+            
+            // Auto-assign critical issues
+            autoAssignCriticalIssue(newIssue);
+          }
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      clearInterval(interval);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchAuthorityProfile = async () => {
@@ -345,6 +402,125 @@ export default function AuthorityDashboard() {
     const names = authorityProfile.full_name.split(" ");
     if (names.length === 1) return names[0].charAt(0).toUpperCase();
     return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
+  };
+
+  // Handle issue assignment
+  const handleAssignWork = (issue: Issue) => {
+    setSelectedIssueForAssignment(issue);
+    setSelectedDepartment('');
+    setAssignmentNotes('');
+    setAssignModalOpen(true);
+  };
+
+  const handleAssignmentSubmit = async () => {
+    if (!selectedIssueForAssignment || !selectedDepartment || !currentUser) return;
+
+    setIsAssigning(true);
+    try {
+      const { error } = await supabase
+        .from('issues')
+        .update({
+          status: 'in-progress',
+          assigned_to: currentUser.id,
+          department: selectedDepartment,
+          assignment_notes: assignmentNotes,
+          assigned_at: new Date().toISOString()
+        })
+        .eq('id', selectedIssueForAssignment.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setIssues(prev => prev.map(issue => 
+        issue.id === selectedIssueForAssignment.id 
+          ? { 
+              ...issue, 
+              status: 'in-progress',
+              assigned_to: currentUser.id,
+              department: selectedDepartment
+            } 
+          : issue
+      ));
+
+      toast({
+        title: "Work Assigned Successfully",
+        description: `Issue assigned to ${selectedDepartment} department`,
+      });
+
+      // Close modal and reset form
+      setAssignModalOpen(false);
+      setSelectedIssueForAssignment(null);
+      setSelectedDepartment('');
+      setAssignmentNotes('');
+
+      // Refresh dashboard data
+      fetchDashboardData();
+    } catch (error: any) {
+      console.error('Error assigning work:', error);
+      toast({
+        title: "Assignment Failed",
+        description: error.message || "Failed to assign work to department",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  // Auto-assign based on category
+  const getRecommendedDepartment = (category: string): string => {
+    const categoryToDepartment: { [key: string]: string } = {
+      'Infrastructure': 'Public Works',
+      'Water': 'Water & Sewerage',
+      'Electricity': 'Electricity',
+      'Transportation': 'Transportation',
+      'Safety': 'Police Department',
+      'Health': 'Health Department',
+      'Environment': 'Environmental Services',
+      'Parks': 'Parks & Recreation',
+      'Building': 'Building & Planning',
+      'Emergency': 'Emergency Services',
+      'Trash': 'Environmental Services'
+    };
+    
+    return categoryToDepartment[category] || 'Public Works';
+  };
+
+  // Auto-assign critical issues immediately
+  const autoAssignCriticalIssue = async (issue: Issue) => {
+    if (!currentUser) return;
+
+    // Auto-assign critical categories immediately
+    const criticalCategories = ['Safety', 'Water', 'Electricity'];
+    if (criticalCategories.includes(issue.category)) {
+      try {
+        const recommendedDept = getRecommendedDepartment(issue.category);
+        
+        const { error } = await supabase
+          .from('issues')
+          .update({
+            status: 'in-progress',
+            assigned_to: currentUser.id,
+            department: recommendedDept,
+            assignment_notes: 'Auto-assigned due to critical priority',
+            assigned_at: new Date().toISOString()
+          })
+          .eq('id', issue.id);
+
+        if (!error) {
+          toast({
+            title: "Critical Issue Auto-Assigned",
+            description: `${issue.title} assigned to ${recommendedDept}`,
+            variant: "default",
+          });
+          
+          // Refresh data to show updated status
+          fetchDashboardData();
+        }
+      } catch (error) {
+        console.error('Auto-assignment failed:', error);
+      }
+    }
   };
 
   const filteredIssues = issues.filter(issue => {
@@ -607,6 +783,30 @@ export default function AuthorityDashboard() {
                                 <Eye className="h-4 w-4 mr-1" />
                                 View
                               </Button>
+                              
+                              {issue.status === 'reported' && (
+                                <Button 
+                                  variant="default" 
+                                  size="sm"
+                                  onClick={() => handleAssignWork(issue)}
+                                  className="bg-blue-600 hover:bg-blue-700"
+                                >
+                                  <UserPlus className="h-4 w-4 mr-1" />
+                                  Assign Work
+                                </Button>
+                              )}
+                              
+                              {issue.status === 'in-progress' && issue.assigned_to === currentUser?.id && (
+                                <Button 
+                                  variant="default" 
+                                  size="sm"
+                                  onClick={() => updateIssueStatus(issue.id, 'resolved')}
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Mark Resolved
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </CardContent>
@@ -914,6 +1114,126 @@ export default function AuthorityDashboard() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assignment Modal */}
+      <Dialog open={assignModalOpen} onOpenChange={setAssignModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Assign Work to Department</DialogTitle>
+          </DialogHeader>
+          
+          {selectedIssueForAssignment && (
+            <div className="space-y-6">
+              {/* Issue Summary */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-lg mb-2">{selectedIssueForAssignment.title}</h3>
+                <p className="text-gray-600 mb-2">{selectedIssueForAssignment.description}</p>
+                <div className="flex gap-2 text-sm">
+                  <Badge variant="outline">{selectedIssueForAssignment.category}</Badge>
+                  <Badge variant="outline">📍 {selectedIssueForAssignment.location}</Badge>
+                  <Badge variant="outline">📅 {new Date(selectedIssueForAssignment.created_at).toLocaleDateString()}</Badge>
+                </div>
+              </div>
+
+              {/* Department Selection */}
+              <div>
+                <Label htmlFor="department" className="text-sm font-medium mb-2 block">
+                  Assign to Department *
+                </Label>
+                <Select 
+                  value={selectedDepartment} 
+                  onValueChange={(value) => {
+                    setSelectedDepartment(value);
+                    // Auto-fill recommended department
+                    if (!selectedDepartment) {
+                      const recommended = getRecommendedDepartment(selectedIssueForAssignment.category);
+                      setSelectedDepartment(recommended);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={`Recommended: ${getRecommendedDepartment(selectedIssueForAssignment.category)}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
+                        {dept === getRecommendedDepartment(selectedIssueForAssignment.category) && (
+                          <span className="ml-2 text-xs text-blue-600">(Recommended)</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Assignment Notes */}
+              <div>
+                <Label htmlFor="notes" className="text-sm font-medium mb-2 block">
+                  Assignment Notes (Optional)
+                </Label>
+                <Textarea
+                  id="notes"
+                  value={assignmentNotes}
+                  onChange={(e) => setAssignmentNotes(e.target.value)}
+                  placeholder="Add any specific instructions or priority notes for the assigned department..."
+                  rows={3}
+                />
+              </div>
+
+              {/* Priority Indicator */}
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <div className="flex items-center gap-2 text-sm">
+                  <AlertTriangle className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium">Assignment Priority:</span>
+                  <Badge className={`${
+                    selectedIssueForAssignment.category === 'Safety' ? 'bg-red-100 text-red-800' :
+                    selectedIssueForAssignment.category === 'Water' || selectedIssueForAssignment.category === 'Electricity' ? 'bg-orange-100 text-orange-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {selectedIssueForAssignment.category === 'Safety' ? 'CRITICAL' :
+                     selectedIssueForAssignment.category === 'Water' || selectedIssueForAssignment.category === 'Electricity' ? 'HIGH' :
+                     'MEDIUM'}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setAssignModalOpen(false);
+                    setSelectedIssueForAssignment(null);
+                    setSelectedDepartment('');
+                    setAssignmentNotes('');
+                  }}
+                  disabled={isAssigning}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleAssignmentSubmit}
+                  disabled={!selectedDepartment || isAssigning}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {isAssigning ? (
+                    <span className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Assigning...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Send className="h-4 w-4" />
+                      Assign Work
+                    </span>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
