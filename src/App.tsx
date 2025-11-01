@@ -12,7 +12,6 @@ import Issues from "./pages/Issues";
 import IssueDetail from "./pages/IssueDetail";
 import Profile from "./pages/Profile";
 import Events from "./pages/Events";
-
 import NotFound from "./pages/NotFound";
 import ReportIssue from "./pages/ReportIssue";
 import UserOnboarding from "./pages/UserOnboarding";
@@ -117,7 +116,6 @@ const AppRoutes = () => {
         } />
         <Route path="/events" element={<Events />} />
         <Route path="/events/:id" element={<EventDetail />} />
-
         <Route path="/authority-dashboard" element={<AuthorityDashboard />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<NotFound />} />
