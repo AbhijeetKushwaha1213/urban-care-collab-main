@@ -205,7 +205,7 @@ const Index = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button size="lg" onClick={() => setAuthModalOpen(true)}>Create an Account</Button>
-              <Button size="lg" variant="outline" onClick={() => navigate('/about')}>Learn More</Button>
+              <Button size="lg" variant="outline" onClick={() => navigate('/issues')}>Explore Issues</Button>
             </div>
           </div>
         </div>
@@ -234,7 +234,7 @@ const Index = () => {
                   <li><a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Home</a></li>
                   <li><a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Issues</a></li>
                   <li><a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Events</a></li>
-                  <li><a href="#" className="text-muted-foreground hover:text-foreground transition-colors">About</a></li>
+
                 </ul>
               </div>
               
