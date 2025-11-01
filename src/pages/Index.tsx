@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import FeaturedIssue from '@/components/FeaturedIssue';
 import IssueCard from '@/components/IssueCard';
+import HomepageSuccessStories from '@/components/HomepageSuccessStories';
 import AuthModal from '@/components/AuthModal';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { toast } from '@/hooks/use-toast';
@@ -123,6 +124,9 @@ const Index = () => {
         
         <FeaturedIssue {...featuredIssue} />
       </section>
+      
+      {/* Success Stories */}
+      <HomepageSuccessStories />
       
       {/* Recent Issues */}
       <section className="py-16 px-4 md:px-6 container mx-auto">

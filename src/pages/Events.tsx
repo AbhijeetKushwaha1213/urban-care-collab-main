@@ -1,215 +1,468 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
-import { MapPin, Calendar, Users, Clock, ArrowRight, User } from 'lucide-react';
+import { MapPin, Calendar, Users, Clock, ArrowRight, User, Plus, Heart, Target, Handshake, Upload, Camera, MessageCircle, UserPlus } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import { useAuth } from "@/contexts/SupabaseAuthContext";
-import { getEvents, createEvent, EventData, getPaginatedEvents } from "@/services/supabaseService";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import AuthModal from '@/components/AuthModal';
+
+interface Initiative {
+  id: string;
+  title: string;
+  description: string;
+  location: string;
+  category: string;
+  image?: string;
+  meetingDate: string;
+  meetingTime: string;
+  volunteersCount: number;
+  volunteersNeeded: number;
+  organizer: string;
+  organizerAvatar?: string;
+  status: 'open' | 'in-progress' | 'completed';
+  createdAt: string;
+  volunteers: string[];
+}
 
 const Events = () => {
   const { toast } = useToast();
   const { currentUser } = useAuth();
-  const [showCreateEventForm, setShowCreateEventForm] = useState(false);
-  const queryClient = useQueryClient();
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const navigate = useNavigate();
   
-  const [newEvent, setNewEvent] = useState({
+  const [newInitiative, setNewInitiative] = useState({
     title: '',
     description: '',
     location: '',
-    date: '',
-    time: '',
-    categories: ''
+    category: 'Community Cleanup',
+    image: '',
+    meetingDate: '',
+    meetingTime: '',
+    volunteersNeeded: 5
   });
 
-  const EVENTS_PAGE_SIZE = 10;
-
-  const [eventsData, setEventsData] = useState<EventData[]>([]);
+  const [initiatives, setInitiatives] = useState<Initiative[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastVisible, setLastVisible] = useState<any>(null);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [stats, setStats] = useState({
+    totalVolunteers: 0,
+    problemsSolved: 0,
+    activeInitiatives: 0
+  });
 
-  // Fetch first page on mount
+  const categories = [
+    'Community Cleanup',
+    'Infrastructure Repair', 
+    'Environmental',
+    'Education Support',
+    'Elderly Care',
+    'Youth Programs',
+    'Food Distribution',
+    'Other'
+  ];
+
   useEffect(() => {
-    let isMounted = true;
-    setIsLoading(true);
-    setError(null);
-    getPaginatedEvents(EVENTS_PAGE_SIZE)
-      .then(({ events, lastVisible }) => {
-        if (isMounted) {
-          setEventsData(events);
-          setLastVisible(lastVisible);
-          setHasMore(events.length === EVENTS_PAGE_SIZE);
+    fetchInitiatives();
+    fetchStats();
+    
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel('initiatives-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'initiatives'
+        }, 
+        (payload) => {
+          console.log('Real-time initiative update:', payload);
+          handleRealTimeUpdate(payload);
         }
-      })
-      .catch((err) => {
-        setError(err.message || "Failed to load events");
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-    return () => { isMounted = false; };
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const loadMoreEvents = async () => {
-    if (!lastVisible) return;
-    setIsLoadingMore(true);
-    setError(null);
-    try {
-      const { events, lastVisible: newLastVisible } = await getPaginatedEvents(EVENTS_PAGE_SIZE, lastVisible);
-      setEventsData((prev) => [...prev, ...events]);
-      setLastVisible(newLastVisible);
-      setHasMore(events.length === EVENTS_PAGE_SIZE);
-    } catch (err: any) {
-      setError(err.message || "Failed to load more events");
-    } finally {
-      setIsLoadingMore(false);
+  const handleRealTimeUpdate = (payload: any) => {
+    if (payload.eventType === 'INSERT') {
+      const newInitiative = transformInitiativeData(payload.new);
+      setInitiatives(prev => [newInitiative, ...prev]);
+      setStats(prev => ({ ...prev, activeInitiatives: prev.activeInitiatives + 1 }));
+    } else if (payload.eventType === 'UPDATE') {
+      const updatedInitiative = transformInitiativeData(payload.new);
+      setInitiatives(prev => 
+        prev.map(initiative => 
+          initiative.id === updatedInitiative.id ? updatedInitiative : initiative
+        )
+      );
+    } else if (payload.eventType === 'DELETE') {
+      setInitiatives(prev => prev.filter(initiative => initiative.id !== payload.old.id));
+      setStats(prev => ({ ...prev, activeInitiatives: Math.max(0, prev.activeInitiatives - 1) }));
     }
   };
 
-  // Create event mutation
-  const createEventMutation = useMutation({
-    mutationFn: async (eventData: {
-      title: string;
-      description: string;
-      location: string;
-      date: string;
-      time: string;
-      categories: string[];
-    }) => {
-      if (!currentUser) throw new Error("You must be logged in to create an event");
-      return await createEvent(eventData, currentUser.uid);
-    },
-    onSuccess: () => {
-      // Invalidate and refetch events after a new event is created
-      queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast({
-        title: "Event Created",
-        description: "Your event has been successfully created!",
-      });
-      setShowCreateEventForm(false);
-      setNewEvent({
-        title: '',
-        description: '',
-        location: '',
-        date: '',
-        time: '',
-        categories: ''
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create event",
-        variant: "destructive",
-      });
-    }
+  const transformInitiativeData = (data: any): Initiative => ({
+    id: data.id,
+    title: data.title,
+    description: data.description,
+    location: data.location,
+    category: data.category,
+    image: data.image,
+    meetingDate: data.meeting_date,
+    meetingTime: data.meeting_time,
+    volunteersCount: data.volunteers_count || 0,
+    volunteersNeeded: data.volunteers_needed,
+    organizer: data.organizer,
+    organizerAvatar: data.organizer_avatar,
+    status: data.status,
+    createdAt: data.created_at,
+    volunteers: data.volunteers || []
   });
 
-  const handleCreateEvent = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser) {
+  const fetchInitiatives = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('initiatives')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const transformedInitiatives = data.map(transformInitiativeData);
+      setInitiatives(transformedInitiatives);
+    } catch (error) {
+      console.error('Error fetching initiatives:', error);
       toast({
-        title: "Authentication Required",
-        description: "Please sign in to create an event",
+        title: "Error loading initiatives",
+        description: "Failed to load community initiatives. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      // Get total volunteers count
+      const { data: initiativesData, error: initiativesError } = await supabase
+        .from('initiatives')
+        .select('volunteers_count, status');
+
+      if (initiativesError) throw initiativesError;
+
+      const totalVolunteers = initiativesData.reduce((sum, initiative) => sum + (initiative.volunteers_count || 0), 0);
+      const activeInitiatives = initiativesData.filter(i => i.status === 'open').length;
+      const problemsSolved = initiativesData.filter(i => i.status === 'completed').length;
+
+      setStats({
+        totalVolunteers,
+        problemsSolved,
+        activeInitiatives
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
+  const handleCreateInitiative = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) {
+      setAuthModalOpen(true);
       return;
     }
 
-    // Convert comma-separated categories to array
-    const categoriesArray = newEvent.categories
-      .split(',')
-      .map(category => category.trim())
-      .filter(category => category !== '');
+    try {
+      const initiativeData = {
+        title: newInitiative.title,
+        description: newInitiative.description,
+        location: newInitiative.location,
+        category: newInitiative.category,
+        image: newInitiative.image || null,
+        meeting_date: newInitiative.meetingDate,
+        meeting_time: newInitiative.meetingTime,
+        volunteers_needed: newInitiative.volunteersNeeded,
+        organizer: currentUser.user_metadata?.full_name || currentUser.email || 'Anonymous',
+        organizer_avatar: currentUser.user_metadata?.avatar_url || null,
+        status: 'open',
+        volunteers_count: 0,
+        volunteers: [],
+        created_by: currentUser.id
+      };
 
-    createEventMutation.mutate({
-      ...newEvent,
-      categories: categoriesArray,
+      const { error } = await supabase
+        .from('initiatives')
+        .insert([initiativeData]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Initiative Created!",
+        description: "Your community initiative has been posted successfully.",
+      });
+
+      setShowCreateForm(false);
+      setNewInitiative({
+        title: '',
+        description: '',
+        location: '',
+        category: 'Community Cleanup',
+        image: '',
+        meetingDate: '',
+        meetingTime: '',
+        volunteersNeeded: 5
+      });
+      
+      // Real-time subscription will handle the update automatically
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create initiative",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleVolunteer = async (initiativeId: string) => {
+    if (!currentUser) {
+      setAuthModalOpen(true);
+      return;
+    }
+
+    try {
+      // Check if user is already a volunteer
+      const initiative = initiatives.find(i => i.id === initiativeId);
+      if (initiative && initiative.volunteers.includes(currentUser.id)) {
+        toast({
+          title: "Already Joined",
+          description: "You're already a volunteer for this initiative.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Use the database function to join the initiative
+      const { error } = await supabase.rpc('join_initiative', {
+        initiative_id: initiativeId,
+        user_id: currentUser.id
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Volunteered Successfully!",
+        description: "You've joined this initiative. The organizer will contact you soon.",
+      });
+
+      // Real-time subscription will handle the update automatically
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to join initiative",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleLeaveInitiative = async (initiativeId: string) => {
+    if (!currentUser) return;
+
+    try {
+      const { error } = await supabase.rpc('leave_initiative', {
+        initiative_id: initiativeId,
+        user_id: currentUser.id
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Left Initiative",
+        description: "You've left this initiative.",
+      });
+
+      // Real-time subscription will handle the update automatically
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to leave initiative",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setNewInitiative(prev => ({ 
+      ...prev, 
+      [name]: name === 'volunteersNeeded' ? parseInt(value) || 0 : value 
+    }));
+  };
+
+  const filteredInitiatives = initiatives.filter(initiative => {
+    if (filter === 'all') return true;
+    if (filter === 'open') return initiative.status === 'open';
+    if (filter === 'my') return currentUser && initiative.volunteers.includes(currentUser.id);
+    return true;
+  });
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long',
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
     });
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setNewEvent(prev => ({ ...prev, [name]: value }));
+  const formatTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':');
+    const date = new Date();
+    date.setHours(parseInt(hours), parseInt(minutes));
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen">
-        <Navbar />
-        <div className="pt-32 pb-20 px-4 md:px-6 container mx-auto">
-          <div className="max-w-4xl mx-auto">
-            <h1 className="text-4xl md:text-5xl font-semibold mb-6">Community Events</h1>
-            <p className="text-xl text-muted-foreground mb-12">Loading events...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen">
-        <Navbar />
-        <div className="pt-32 pb-20 px-4 md:px-6 container mx-auto">
-          <div className="max-w-4xl mx-auto">
-            <h1 className="text-4xl md:text-5xl font-semibold mb-6">Community Events</h1>
-            <p className="text-xl text-muted-foreground mb-12">Error loading events: {error}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <Navbar />
       
-      <div className="pt-32 pb-20 px-4 md:px-6 container mx-auto">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-semibold mb-6">Community Events</h1>
-          <p className="text-xl text-muted-foreground mb-12">
-            Join upcoming events organized by your community to solve local issues together.
-          </p>
-          
-          {/* Create Event Button/Form */}
-          {!showCreateEventForm ? (
-            <Button 
-              className="w-full mb-8 py-8 text-lg gap-3"
-              onClick={() => {
-                if (!currentUser) {
-                  toast({
-                    title: "Authentication Required",
-                    description: "Please sign in to create an event",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                setShowCreateEventForm(true);
-              }}
+      <div className="pt-28 pb-20 flex-1">
+        {/* Hero Section */}
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center px-3 py-1.5 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-sm mb-6">
+              <Heart className="h-4 w-4 mr-2" />
+              <span>Community-Driven Solutions</span>
+            </div>
+            
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 text-balance">
+              Join <span className="text-primary">Community Initiatives</span>
+            </h1>
+            
+            <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto text-balance">
+              Connect with neighbors to solve local problems together. No government interference - just community members working as one to make a difference.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button 
+                size="lg" 
+                className="group"
+                onClick={() => {
+                  if (!currentUser) {
+                    setAuthModalOpen(true);
+                  } else {
+                    setShowCreateForm(true);
+                  }
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                <span>Start an Initiative</span>
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Button>
+              <Button size="lg" variant="outline">
+                <Target className="mr-2 h-4 w-4" />
+                <span>Browse Initiatives</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Stats Section */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            <div className="bg-card rounded-xl p-6 text-center">
+              <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center mx-auto mb-4">
+                <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className="text-2xl font-semibold mb-2">{stats.totalVolunteers}</h3>
+              <p className="text-muted-foreground">Total Volunteers</p>
+            </div>
+            <div className="bg-card rounded-xl p-6 text-center">
+              <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center mx-auto mb-4">
+                <Target className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-2xl font-semibold mb-2">{stats.problemsSolved}</h3>
+              <p className="text-muted-foreground">Problems Solved</p>
+            </div>
+            <div className="bg-card rounded-xl p-6 text-center">
+              <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center mx-auto mb-4">
+                <Handshake className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <h3 className="text-2xl font-semibold mb-2">{stats.activeInitiatives}</h3>
+              <p className="text-muted-foreground">Active Initiatives</p>
+            </div>
+          </div>
+
+          {/* Filter Tabs */}
+          <div className="flex flex-wrap gap-2 mb-8">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                filter === 'all' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
             >
-              <span>Create New Event</span>
-              <ArrowRight className="h-5 w-5" />
-            </Button>
-          ) : (
-            <div className="bg-card border rounded-xl p-6 mb-8 animate-fade-in">
-              <h2 className="text-2xl font-semibold mb-4">Create New Event</h2>
-              <form onSubmit={handleCreateEvent} className="space-y-4">
+              All Initiatives
+            </button>
+            <button
+              onClick={() => setFilter('open')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                filter === 'open' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              Open for Volunteers
+            </button>
+            {currentUser && (
+              <button
+                onClick={() => setFilter('my')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  filter === 'my' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                }`}
+              >
+                My Initiatives
+              </button>
+            )}
+          </div>
+
+          {/* Create Initiative Form */}
+          {showCreateForm && (
+            <div className="bg-card border rounded-xl p-6 mb-8 animate-slide-down">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-semibold">Start a Community Initiative</h2>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setShowCreateForm(false)}
+                >
+                  ✕
+                </Button>
+              </div>
+              
+              <form onSubmit={handleCreateInitiative} className="space-y-4">
                 <div>
-                  <label htmlFor="title" className="block text-sm font-medium mb-1">Event Title</label>
+                  <label htmlFor="title" className="block text-sm font-medium mb-1">Initiative Title</label>
                   <input
                     type="text"
                     id="title"
                     name="title"
-                    value={newEvent.title}
+                    value={newInitiative.title}
                     onChange={handleInputChange}
-                    className="w-full p-2.5 rounded-lg border border-input bg-background"
-                    placeholder="Enter event title"
+                    className="w-full p-3 rounded-lg border border-input bg-background"
+                    placeholder="e.g., Community Park Cleanup Drive"
                     required
                   />
                 </div>
@@ -219,66 +472,96 @@ const Events = () => {
                   <textarea
                     id="description"
                     name="description"
-                    value={newEvent.description}
+                    value={newInitiative.description}
                     onChange={handleInputChange}
-                    className="w-full p-2.5 rounded-lg border border-input bg-background min-h-24"
-                    placeholder="Describe your event"
+                    className="w-full p-3 rounded-lg border border-input bg-background min-h-32"
+                    placeholder="Describe the problem and how volunteers can help solve it..."
                     required
                   />
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="location" className="block text-sm font-medium mb-1">Location</label>
+                    <label htmlFor="location" className="block text-sm font-medium mb-1">Meeting Location</label>
                     <input
                       type="text"
                       id="location"
                       name="location"
-                      value={newEvent.location}
+                      value={newInitiative.location}
                       onChange={handleInputChange}
-                      className="w-full p-2.5 rounded-lg border border-input bg-background"
-                      placeholder="Enter event location"
+                      className="w-full p-3 rounded-lg border border-input bg-background"
+                      placeholder="Where will volunteers meet?"
                       required
                     />
                   </div>
                   
                   <div>
-                    <label htmlFor="categories" className="block text-sm font-medium mb-1">Categories</label>
-                    <input
-                      type="text"
-                      id="categories"
-                      name="categories"
-                      value={newEvent.categories}
+                    <label htmlFor="category" className="block text-sm font-medium mb-1">Category</label>
+                    <select
+                      id="category"
+                      name="category"
+                      value={newInitiative.category}
                       onChange={handleInputChange}
-                      className="w-full p-2.5 rounded-lg border border-input bg-background"
-                      placeholder="e.g. Cleanup, Water, Infrastructure"
+                      className="w-full p-3 rounded-lg border border-input bg-background"
                       required
-                    />
+                    >
+                      {categories.map(category => (
+                        <option key={category} value={category}>{category}</option>
+                      ))}
+                    </select>
                   </div>
                   
                   <div>
-                    <label htmlFor="date" className="block text-sm font-medium mb-1">Date</label>
+                    <label htmlFor="meetingDate" className="block text-sm font-medium mb-1">Meeting Date</label>
                     <input
                       type="date"
-                      id="date"
-                      name="date"
-                      value={newEvent.date}
+                      id="meetingDate"
+                      name="meetingDate"
+                      value={newInitiative.meetingDate}
                       onChange={handleInputChange}
-                      className="w-full p-2.5 rounded-lg border border-input bg-background"
+                      className="w-full p-3 rounded-lg border border-input bg-background"
                       required
                     />
                   </div>
                   
                   <div>
-                    <label htmlFor="time" className="block text-sm font-medium mb-1">Time</label>
+                    <label htmlFor="meetingTime" className="block text-sm font-medium mb-1">Meeting Time</label>
                     <input
                       type="time"
-                      id="time"
-                      name="time"
-                      value={newEvent.time}
+                      id="meetingTime"
+                      name="meetingTime"
+                      value={newInitiative.meetingTime}
                       onChange={handleInputChange}
-                      className="w-full p-2.5 rounded-lg border border-input bg-background"
+                      className="w-full p-3 rounded-lg border border-input bg-background"
                       required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="volunteersNeeded" className="block text-sm font-medium mb-1">Volunteers Needed</label>
+                    <input
+                      type="number"
+                      id="volunteersNeeded"
+                      name="volunteersNeeded"
+                      value={newInitiative.volunteersNeeded}
+                      onChange={handleInputChange}
+                      className="w-full p-3 rounded-lg border border-input bg-background"
+                      min="1"
+                      max="100"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="image" className="block text-sm font-medium mb-1">Problem Image URL (Optional)</label>
+                    <input
+                      type="url"
+                      id="image"
+                      name="image"
+                      value={newInitiative.image}
+                      onChange={handleInputChange}
+                      className="w-full p-3 rounded-lg border border-input bg-background"
+                      placeholder="https://example.com/image.jpg"
                     />
                   </div>
                 </div>
@@ -287,86 +570,201 @@ const Events = () => {
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={() => setShowCreateEventForm(false)}
+                    onClick={() => setShowCreateForm(false)}
                   >
                     Cancel
                   </Button>
-                  <Button type="submit">Create Event</Button>
+                  <Button type="submit">
+                    <Upload className="mr-2 h-4 w-4" />
+                    Post Initiative
+                  </Button>
                 </div>
               </form>
             </div>
           )}
-          
-          <div className="flex flex-col gap-6">
-            {eventsData.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-lg text-muted-foreground">No events found. Create the first one!</p>
-              </div>
-            ) : (
-              eventsData.map((event: EventData) => (
-                <div key={event.id} className="rounded-xl border p-6 bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center justify-between">
-                      <span className={`text-sm ${event.status === 'Upcoming' ? 'bg-primary/10 text-primary' : 'bg-secondary'} px-3 py-1 rounded-full`}>
-                        {event.status}
-                      </span>
-                      <span className="text-sm text-muted-foreground">{event.timeRemaining}</span>
-                    </div>
+
+          {/* Initiatives Grid */}
+          {isLoading ? (
+            <div className="text-center py-16">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading community initiatives...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredInitiatives.length > 0 ? (
+                filteredInitiatives.map((initiative) => (
+                  <div key={initiative.id} className="bg-card rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                    {initiative.image && (
+                      <div className="relative h-48 overflow-hidden">
+                        <img 
+                          src={initiative.image} 
+                          alt={initiative.title}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute top-3 left-3">
+                          <span className="px-2 py-1 bg-white/90 dark:bg-black/90 text-xs font-medium rounded-md">
+                            {initiative.category}
+                          </span>
+                        </div>
+                        <div className="absolute top-3 right-3">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-md ${
+                            initiative.status === 'open' 
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                              : 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-400'
+                          }`}>
+                            {initiative.status === 'open' ? 'Open' : 'In Progress'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     
-                    <h3 className="text-xl font-semibold">{event.title}</h3>
-                    <p className="text-muted-foreground">{event.description}</p>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-y-3">
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <MapPin className="h-4 w-4 mr-2" />
-                        <span>{event.location}</span>
+                    <div className="p-5">
+                      {!initiative.image && (
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="px-2 py-1 bg-secondary text-xs font-medium rounded-md">
+                            {initiative.category}
+                          </span>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-md ${
+                            initiative.status === 'open' 
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                              : 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-400'
+                          }`}>
+                            {initiative.status === 'open' ? 'Open' : 'In Progress'}
+                          </span>
+                        </div>
+                      )}
+                      
+                      <h3 className="text-lg font-semibold mb-2 line-clamp-2">{initiative.title}</h3>
+                      <p className="text-muted-foreground text-sm mb-4 line-clamp-3">{initiative.description}</p>
+                      
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <MapPin className="h-4 w-4 mr-2 flex-shrink-0" />
+                          <span className="truncate">{initiative.location}</span>
+                        </div>
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <Calendar className="h-4 w-4 mr-2 flex-shrink-0" />
+                          <span>{formatDate(initiative.meetingDate)}</span>
+                        </div>
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <Clock className="h-4 w-4 mr-2 flex-shrink-0" />
+                          <span>{formatTime(initiative.meetingTime)}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <Calendar className="h-4 w-4 mr-2" />
-                        <span>{event.date}</span>
+
+                      {/* Organizer Info */}
+                      <div className="flex items-center gap-3 mb-4 p-3 bg-secondary/50 rounded-lg">
+                        <div className="h-8 w-8 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
+                          {initiative.organizerAvatar ? (
+                            <img 
+                              src={initiative.organizerAvatar} 
+                              alt={initiative.organizer}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{initiative.organizer}</p>
+                          <p className="text-xs text-muted-foreground">Initiative Organizer</p>
+                        </div>
                       </div>
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4 mr-2" />
-                        <span>{event.time}</span>
+
+                      {/* Volunteers Progress */}
+                      <div className="mb-4">
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className="text-muted-foreground">Volunteers</span>
+                          <span className="font-medium">
+                            {initiative.volunteersCount}/{initiative.volunteersNeeded}
+                          </span>
+                        </div>
+                        <div className="w-full bg-secondary rounded-full h-2">
+                          <div 
+                            className="bg-primary h-2 rounded-full transition-all duration-300"
+                            style={{ 
+                              width: `${Math.min((initiative.volunteersCount / initiative.volunteersNeeded) * 100, 100)}%` 
+                            }}
+                          ></div>
+                        </div>
                       </div>
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <Users className="h-4 w-4 mr-2" />
-                        <span>{event.volunteersCount || 0} volunteers attending</span>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2">
+                        {currentUser && initiative.volunteers.includes(currentUser.id) ? (
+                          <Button 
+                            className="flex-1"
+                            variant="outline"
+                            onClick={() => handleLeaveInitiative(initiative.id)}
+                          >
+                            <Users className="mr-2 h-4 w-4" />
+                            Leave Initiative
+                          </Button>
+                        ) : (
+                          <Button 
+                            className="flex-1"
+                            onClick={() => handleVolunteer(initiative.id)}
+                            disabled={initiative.volunteersCount >= initiative.volunteersNeeded}
+                          >
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            {initiative.volunteersCount >= initiative.volunteersNeeded ? 'Full' : 'Volunteer'}
+                          </Button>
+                        )}
+                        <Button variant="outline" size="sm">
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
                       </div>
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-2">
-                      {event.categories && event.categories.map((category, index) => (
-                        <span key={index} className="text-xs px-2 py-1 bg-secondary rounded-md">{category}</span>
-                      ))}
-                    </div>
-                    
-                    <div className="flex justify-between items-center mt-2">
-                      <div className="flex -space-x-2">
-                        {[...Array(Math.min(event.volunteersCount || 0, 5))].map((_, i) => (
-                          <div key={i} className="h-8 w-8 rounded-full bg-secondary border-2 border-background flex items-center justify-center overflow-hidden">
-                            <User className="h-4 w-4" />
-                          </div>
-                        ))}
-                      </div>
-                      <Button variant="link" onClick={() => navigate(`/events/${event.id}`)}>
-                        View Details
-                      </Button>
                     </div>
                   </div>
+                ))
+              ) : (
+                <div className="col-span-full text-center py-16">
+                  <Target className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">No initiatives found</h3>
+                  <p className="text-muted-foreground mb-6">
+                    {filter === 'all' 
+                      ? "Be the first to start a community initiative!"
+                      : filter === 'open'
+                      ? "No open initiatives right now. Start one!"
+                      : "You haven't joined any initiatives yet."
+                    }
+                  </p>
+                  <Button onClick={() => setShowCreateForm(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Start an Initiative
+                  </Button>
                 </div>
-              ))
-            )}
-            {hasMore && (
-              <div className="flex justify-center mt-6">
-                <Button onClick={loadMoreEvents} disabled={isLoadingMore}>
-                  {isLoadingMore ? "Loading..." : "Load More"}
-                </Button>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="bg-secondary/80 py-8 px-4 md:px-6">
+        <div className="container mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="flex items-center mb-4 md:mb-0">
+              <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center mr-2">
+                <Heart className="h-3 w-3 text-white" />
+              </div>
+              <span className="text-lg font-semibold">Community Initiatives</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Together we can solve any problem
+            </p>
+          </div>
+        </div>
+      </footer>
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={authModalOpen} 
+        onClose={() => setAuthModalOpen(false)}
+        redirectTo="/events"
+      />
     </div>
   );
 };

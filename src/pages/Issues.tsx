@@ -5,6 +5,7 @@ import { Search, Filter, Plus, MapPin, Calendar, MessageSquare, Users, SlidersHo
 import Navbar from '@/components/Navbar';
 import Button from '@/components/Button';
 import IssueCard from '@/components/IssueCard';
+import SuccessStoriesShowcase from '@/components/SuccessStoriesShowcase';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import AuthModal from '@/components/AuthModal';
 import { supabase } from '@/lib/supabase';
@@ -327,6 +328,9 @@ const Issues = () => {
               </div>
             )}
           </div>
+          
+          {/* Success Stories Showcase */}
+          <SuccessStoriesShowcase />
           
           {/* Issues Grid */}
           {loading ? (
