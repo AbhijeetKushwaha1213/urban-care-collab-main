@@ -11,7 +11,7 @@ interface AuthContextType {
   hasUnauthorizedDomainError: boolean
   signUp: (email: string, password: string, name: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
-  signInWithGoogle: () => Promise<void>
+  signInWithGoogle: (redirectTo?: string) => Promise<void>
   logOut: () => Promise<void>
 }
 
@@ -176,9 +176,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (redirectTo?: string) => {
     try {
       console.log('Attempting Google sign in')
+      
+      // Store redirect URL for after authentication
+      if (redirectTo) {
+        sessionStorage.setItem('auth_redirect_to', redirectTo)
+      }
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -188,20 +194,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) throw error
       
-      console.log('Google sign in initiated')
+      console.log('Google sign in initiated - redirecting to Google...')
+      // Note: The user will be redirected to Google, so no further code executes here
     } catch (error: any) {
       console.error("Google sign in error:", error)
-      let errorMessage = "Google sign in failed"
+      console.error("Error details:", {
+        message: error.message,
+        code: error.code,
+        status: error.status
+      })
       
-      if (error.message?.includes('OAuth')) {
-        errorMessage = "Google authentication is not properly configured"
+      let errorMessage = "Google sign in failed"
+      let helpText = ""
+      
+      if (error.message?.includes('OAuth') || error.message?.includes('provider')) {
+        errorMessage = "Google authentication is not configured"
+        helpText = "Please set up Google OAuth in your Supabase dashboard under Authentication > Providers"
+      } else if (error.message?.includes('Invalid login credentials')) {
+        errorMessage = "Google authentication failed"
+        helpText = "Please try again or contact support if the issue persists"
+      } else if (error.message?.includes('redirect')) {
+        errorMessage = "Redirect URL configuration error"
+        helpText = "Please check your Google Cloud Console and Supabase redirect URL settings"
       } else {
         errorMessage = error.message || "Google sign in failed"
+        helpText = "Please check the browser console for more details"
       }
       
       toast({
-        title: "Google sign in failed",
-        description: errorMessage,
+        title: errorMessage,
+        description: helpText,
         variant: "destructive",
       })
       throw error

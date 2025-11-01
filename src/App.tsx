@@ -16,6 +16,7 @@ import ReportIssue from "./pages/ReportIssue";
 import UserOnboarding from "./pages/UserOnboarding";
 import EventDetail from "./pages/EventDetail";
 import AuthorityDashboard from "./pages/AuthorityDashboard";
+import AuthCallback from "./pages/AuthCallback";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,7 @@ const AppRoutes = () => {
         <Route path="/events/:id" element={<EventDetail />} />
         <Route path="/about" element={<About />} />
         <Route path="/authority-dashboard" element={<AuthorityDashboard />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>

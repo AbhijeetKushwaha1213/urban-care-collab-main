@@ -66,19 +66,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      await signInWithGoogle();
-      toast({
-        title: "Signed in successfully",
-        description: "Welcome back!",
-      });
-      onClose();
-      if (redirectTo) {
-        navigate(redirectTo);
-      }
+      await signInWithGoogle(redirectTo);
+      // Note: User will be redirected to Google, so the code below won't execute
+      // The success handling will happen in the AuthCallback component
     } catch (error) {
       // Error handling is done in the context
       console.error('Google auth error:', error);
-    } finally {
       setGoogleLoading(false);
     }
   };
@@ -259,19 +252,35 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
               <span>Google</span>
             </Button>
 
-            {/* Debug button for development */}
+            {/* Debug buttons for development */}
             {process.env.NODE_ENV === 'development' && (
-              <Button 
-                variant="ghost" 
-                className="w-full text-xs" 
-                size="sm" 
-                onClick={handleDebugTest}
-                isLoading={debugLoading}
-                disabled={isLoading || googleLoading}
-              >
-                <Bug className="mr-2 h-3 w-3" />
-                <span>Test Supabase Connection</span>
-              </Button>
+              <div className="space-y-2">
+                <Button 
+                  variant="ghost" 
+                  className="w-full text-xs" 
+                  size="sm" 
+                  onClick={handleDebugTest}
+                  isLoading={debugLoading}
+                  disabled={isLoading || googleLoading}
+                >
+                  <Bug className="mr-2 h-3 w-3" />
+                  <span>Test Supabase Connection</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="w-full text-xs" 
+                  size="sm" 
+                  onClick={() => {
+                    console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL || 'Not set')
+                    console.log('Current origin:', window.location.origin)
+                    console.log('Redirect URL:', `${window.location.origin}/auth/callback`)
+                  }}
+                  disabled={isLoading || googleLoading}
+                >
+                  <Bug className="mr-2 h-3 w-3" />
+                  <span>Debug OAuth Config</span>
+                </Button>
+              </div>
             )}
           </form>
           

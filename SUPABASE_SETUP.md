@@ -140,12 +140,33 @@ If you need file uploads:
 
 ## 5. Configure Authentication
 
-1. Go to Authentication > Settings
-2. Configure your site URL (e.g., `http://localhost:5173` for development)
-3. For Google OAuth:
-   - Go to Authentication > Providers
-   - Enable Google provider
-   - Add your Google OAuth credentials
+### Basic Authentication Setup
+1. Go to **Authentication** > **Settings** in your Supabase dashboard
+2. Under **Site URL**, add your development URL: `http://localhost:8081`
+3. Under **Redirect URLs**, add: `http://localhost:8081/auth/callback`
+
+### Google OAuth Setup (Optional but Recommended)
+1. **Create Google OAuth Credentials:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select existing one
+   - Enable the Google+ API
+   - Go to **Credentials** > **Create Credentials** > **OAuth 2.0 Client IDs**
+   - Choose **Web application**
+   - Add authorized redirect URIs:
+     - `https://your-project-id.supabase.co/auth/v1/callback`
+     - `http://localhost:8081/auth/callback` (for development)
+   - Copy the **Client ID** and **Client Secret**
+
+2. **Configure in Supabase:**
+   - Go to **Authentication** > **Providers** in Supabase
+   - Enable **Google** provider
+   - Paste your **Client ID** and **Client Secret**
+   - Save the configuration
+
+3. **Test the Setup:**
+   - Try signing in with Google from your app
+   - Check the browser console for any errors
+   - Verify the redirect flow works correctly
 
 ## 6. Environment Variables (Optional)
 
