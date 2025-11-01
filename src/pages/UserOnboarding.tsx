@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
@@ -42,7 +42,6 @@ const formSchema = z.object({
   city: z.string().min(2, 'City must be at least 2 characters'),
   state: z.string().min(2, 'State must be at least 2 characters'),
   zipCode: z.string().min(5, 'Zip code must be at least 5 characters'),
-  role: z.enum(['resident', 'community_leader', 'city_official', 'volunteer', 'business_owner']),
   bio: z.string().max(300, 'Bio must be less than 300 characters').optional(),
 });
 
@@ -68,7 +67,6 @@ const UserOnboarding = () => {
       city: '',
       state: '',
       zipCode: '',
-      role: 'resident',
       bio: '',
     },
   });
@@ -98,9 +96,10 @@ const UserOnboarding = () => {
           city: values.city,
           state: values.state,
           zip_code: values.zipCode,
-          role: values.role,
-          bio: values.bio,
+          role: 'resident', // Default role for all users
+          bio: values.bio || '',
           created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           is_onboarding_complete: true,
         });
 
@@ -110,7 +109,9 @@ const UserOnboarding = () => {
         title: "Profile created",
         description: "Your profile has been successfully created!",
       });
-      navigate('/profile');
+      
+      // Redirect to dashboard after successful profile creation
+      navigate('/dashboard');
     } catch (error) {
       console.error("Error creating profile:", error);
       toast({
@@ -263,56 +264,7 @@ const UserOnboarding = () => {
               </div>
               
               <div className="space-y-6">
-                <h2 className="text-xl font-semibold">Community Role</h2>
-                
-                <FormField
-                  control={form.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>What best describes your role?</FormLabel>
-                      <FormControl>
-                        <RadioGroup
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                          className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2"
-                        >
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="resident" />
-                            </FormControl>
-                            <FormLabel className="font-normal">Resident</FormLabel>
-                          </FormItem>
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="community_leader" />
-                            </FormControl>
-                            <FormLabel className="font-normal">Community Leader</FormLabel>
-                          </FormItem>
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="city_official" />
-                            </FormControl>
-                            <FormLabel className="font-normal">City Official</FormLabel>
-                          </FormItem>
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="volunteer" />
-                            </FormControl>
-                            <FormLabel className="font-normal">Volunteer</FormLabel>
-                          </FormItem>
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="business_owner" />
-                            </FormControl>
-                            <FormLabel className="font-normal">Business Owner</FormLabel>
-                          </FormItem>
-                        </RadioGroup>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <h2 className="text-xl font-semibold">About You</h2>
                 
                 <FormField
                   control={form.control}

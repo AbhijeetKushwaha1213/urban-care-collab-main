@@ -64,7 +64,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } else if (!profile) {
             // User has no profile, mark as new user
             setIsNewUser(true)
+          } else if (!profile.is_onboarding_complete) {
+            // User has profile but onboarding not complete
+            setIsNewUser(true)
           } else {
+            // User has complete profile
             setIsNewUser(false)
           }
         } catch (error) {

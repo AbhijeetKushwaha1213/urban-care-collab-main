@@ -1,12 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Brain, MapPin, Bell, BarChart3, Users, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
+import AuthModal from '@/components/AuthModal';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 
 export default function Landing() {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [selectedUserType, setSelectedUserType] = useState<'citizen' | 'authority' | null>(null);
 
   const handleGetStarted = () => {
     // Scroll to the user type selection section
@@ -14,11 +19,41 @@ export default function Landing() {
   };
 
   const handleCitizenAccess = () => {
-    navigate('/issues');
+    if (currentUser) {
+      // User is already logged in, redirect directly
+      navigate('/dashboard');
+    } else {
+      // User not logged in, show auth modal
+      setSelectedUserType('citizen');
+      setAuthModalOpen(true);
+    }
   };
 
   const handleAuthorityAccess = () => {
-    navigate('/authority-dashboard');
+    if (currentUser) {
+      // User is already logged in, redirect directly
+      navigate('/authority-dashboard');
+    } else {
+      // User not logged in, show auth modal
+      setSelectedUserType('authority');
+      setAuthModalOpen(true);
+    }
+  };
+
+  const handleAuthSuccess = () => {
+    // After successful authentication, redirect based on selected user type
+    setAuthModalOpen(false);
+    if (selectedUserType === 'citizen') {
+      navigate('/dashboard');
+    } else if (selectedUserType === 'authority') {
+      navigate('/authority-dashboard');
+    }
+    setSelectedUserType(null);
+  };
+
+  const handleAuthClose = () => {
+    setAuthModalOpen(false);
+    setSelectedUserType(null);
   };
 
   return (
@@ -160,6 +195,13 @@ export default function Landing() {
       <footer className="py-6 text-center text-gray-400 bg-gray-950 border-t border-gray-800">
         © 2025 UrbanCare | Empowering Citizens for Smarter Cities
       </footer>
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={authModalOpen} 
+        onClose={handleAuthClose}
+        redirectTo={selectedUserType === 'citizen' ? '/dashboard' : '/authority-dashboard'}
+      />
     </div>
   );
 }

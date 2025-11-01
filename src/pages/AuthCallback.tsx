@@ -57,10 +57,10 @@ export default function AuthCallback() {
             description: "You've successfully signed in with Google.",
           });
 
-          // Redirect to the intended page or home
+          // Redirect to the intended page or dashboard
           const redirectTo = sessionStorage.getItem('auth_redirect_to');
           sessionStorage.removeItem('auth_redirect_to');
-          navigate(redirectTo || '/issues');
+          navigate(redirectTo || '/dashboard');
         } else {
           navigate('/');
         }

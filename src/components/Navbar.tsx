@@ -35,11 +35,13 @@ const Navbar = () => {
   }, [location]);
 
   const navLinks = [
-    { name: 'Home', path: '/' },
+    { name: 'Home', path: currentUser ? '/dashboard' : '/' },
     { name: 'Issues', path: '/issues' },
     { name: 'Events', path: '/events' },
     { name: 'About', path: '/about' }
   ];
+
+
 
   const isActive = (path: string) => {
     return location.pathname === path;

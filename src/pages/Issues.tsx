@@ -1,14 +1,16 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Filter, Plus, MapPin, Calendar, MessageSquare, Users, SlidersHorizontal } from 'lucide-react';
+import { Search, Filter, Plus, MapPin, Calendar, MessageSquare, Users, SlidersHorizontal, Loader2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Button from '@/components/Button';
 import IssueCard from '@/components/IssueCard';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import AuthModal from '@/components/AuthModal';
+import { supabase } from '@/lib/supabase';
+import { toast } from '@/hooks/use-toast';
 
-// Sample data
+// Sample data (fallback)
 const issuesData = [
   {
     id: "1",
@@ -78,7 +80,7 @@ const issuesData = [
   }
 ];
 
-const categories = ["All", "Trash", "Water", "Infrastructure", "Drainage", "Other"];
+const categories = ["All", "Infrastructure", "Electricity", "Trash", "Water", "Other"];
 const sortOptions = ["Newest", "Most Comments", "Most Volunteers", "Oldest"];
 
 const Issues = () => {
@@ -89,6 +91,77 @@ const Issues = () => {
   const [sortBy, setSortBy] = useState('Newest');
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [issues, setIssues] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch issues from Supabase
+  const fetchIssues = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('issues')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Transform data to match the expected format
+      const transformedIssues = data.map(issue => ({
+        id: issue.id,
+        title: issue.title,
+        description: issue.description,
+        location: issue.location,
+        category: issue.category,
+        image: issue.image || "https://images.unsplash.com/photo-1604357209793-fca5dca89f97?q=80&w=800&auto=format&fit=crop", // Default image if none
+        date: formatDate(issue.created_at),
+        commentsCount: issue.comments_count || 0,
+        volunteersCount: issue.volunteers_count || 0,
+        status: issue.status
+      }));
+
+      setIssues(transformedIssues);
+    } catch (error) {
+      console.error('Error fetching issues:', error);
+      toast({
+        title: "Error loading issues",
+        description: "Failed to load community issues. Please try again.",
+        variant: "destructive",
+      });
+      // Fallback to sample data if database fails
+      setIssues(issuesData);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchIssues();
+  }, []);
+
+  // Refresh issues when component becomes visible (user navigates back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchIssues();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  // Helper function to format date
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) return '1 day ago';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} week${Math.ceil(diffDays / 7) > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
+  };
   
   const handleReportIssue = () => {
     if (currentUser) {
@@ -101,7 +174,7 @@ const Issues = () => {
   };
 
   // Filter and sort issues
-  const filteredIssues = issuesData.filter(issue => {
+  const filteredIssues = issues.filter(issue => {
     const matchesSearch = issue.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          issue.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          issue.location.toLowerCase().includes(searchQuery.toLowerCase());
@@ -109,6 +182,17 @@ const Issues = () => {
     const matchesCategory = selectedCategory === 'All' || issue.category === selectedCategory;
     
     return matchesSearch && matchesCategory;
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case 'Most Comments':
+        return b.commentsCount - a.commentsCount;
+      case 'Most Volunteers':
+        return b.volunteersCount - a.volunteersCount;
+      case 'Oldest':
+        return new Date(a.date) - new Date(b.date);
+      default: // Newest
+        return new Date(b.date) - new Date(a.date);
+    }
   });
   
   return (
@@ -199,32 +283,52 @@ const Issues = () => {
           </div>
           
           {/* Issues Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredIssues.length > 0 ? (
-              filteredIssues.map(issue => (
-                <IssueCard key={issue.id} {...issue} />
-              ))
-            ) : (
-              <div className="col-span-full py-16 text-center">
-                <div className="max-w-md mx-auto">
-                  <Filter className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-xl font-semibold mb-2">No issues found</h3>
-                  <p className="text-muted-foreground mb-6">
-                    We couldn't find any issues matching your search criteria. Try adjusting your filters or search query.
-                  </p>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSelectedCategory('All');
-                    }}
-                  >
-                    Clear Filters
-                  </Button>
-                </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-muted-foreground">Loading community issues...</p>
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredIssues.length > 0 ? (
+                filteredIssues.map(issue => (
+                  <IssueCard key={issue.id} {...issue} />
+                ))
+              ) : (
+                <div className="col-span-full py-16 text-center">
+                  <div className="max-w-md mx-auto">
+                    <Filter className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">No issues found</h3>
+                    <p className="text-muted-foreground mb-6">
+                      {issues.length === 0 
+                        ? "No issues have been reported yet. Be the first to report a community issue!"
+                        : "We couldn't find any issues matching your search criteria. Try adjusting your filters or search query."
+                      }
+                    </p>
+                    <div className="flex gap-3 justify-center">
+                      {issues.length > 0 && (
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setSearchQuery('');
+                            setSelectedCategory('All');
+                          }}
+                        >
+                          Clear Filters
+                        </Button>
+                      )}
+                      <Button onClick={handleReportIssue}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Report Issue
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

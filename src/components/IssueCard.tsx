@@ -22,6 +22,7 @@ const categoryColors = {
   'Trash': 'bg-amber-50 text-amber-600 border-amber-200',
   'Water': 'bg-blue-50 text-blue-600 border-blue-200',
   'Infrastructure': 'bg-purple-50 text-purple-600 border-purple-200',
+  'Electricity': 'bg-yellow-50 text-yellow-600 border-yellow-200',
   'Drainage': 'bg-green-50 text-green-600 border-green-200',
   'Other': 'bg-gray-50 text-gray-600 border-gray-200'
 };
