@@ -1,11 +1,10 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Mail, Lock, User, ArrowRight, Globe, Bug } from 'lucide-react';
+import { X, Mail, Lock, User, ArrowRight, Globe } from 'lucide-react';
 import Button from './Button';
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/SupabaseAuthContext";
-import { testSupabaseConnection, testSupabaseAuth } from "@/lib/supabase";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -21,7 +20,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [debugLoading, setDebugLoading] = useState(false);
+
   const { toast } = useToast();
   const { signIn, signUp, signInWithGoogle } = useAuth();
 
@@ -76,35 +75,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
     }
   };
 
-  const handleDebugTest = async () => {
-    setDebugLoading(true);
-    try {
-      const supabaseOk = await testSupabaseConnection();
-      const authOk = await testSupabaseAuth();
-      
-      if (supabaseOk && authOk) {
-        toast({
-          title: "Connection Test",
-          description: "Supabase connections are working properly!",
-        });
-      } else {
-        toast({
-          title: "Connection Test",
-          description: "Some Supabase connections failed. Check console for details.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Debug test error:', error);
-      toast({
-        title: "Connection Test",
-        description: "Failed to test connections. Check console for details.",
-        variant: "destructive",
-      });
-    } finally {
-      setDebugLoading(false);
-    }
-  };
+
 
   const toggleMode = () => {
     setIsSignIn(!isSignIn);
@@ -125,22 +96,22 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-xs" onClick={handleClose} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
       
-      <div className="relative bg-background rounded-xl shadow-elevated max-w-md w-full mx-auto animate-scale-in overflow-hidden">
+      <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto overflow-hidden border border-gray-200">
         <button 
           onClick={handleClose}
-          className="absolute top-4 right-4 p-1 rounded-full hover:bg-secondary transition-colors"
+          className="absolute top-4 right-4 p-1 rounded-full hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
         >
           <X className="h-5 w-5" />
         </button>
         
         <div className="p-6 sm:p-8">
-          <h2 className="text-2xl font-semibold mb-1">
+          <h2 className="text-2xl font-semibold mb-1 text-gray-900">
             {isSignIn ? 'Welcome back' : 'Create an account'}
           </h2>
-          <p className="text-muted-foreground mb-6">
+          <p className="text-gray-600 mb-6">
             {redirectTo === '/issues/report' 
               ? 'Please sign in to report an issue and help improve your community'
               : isSignIn 
@@ -152,19 +123,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isSignIn && (
               <div>
-                <label htmlFor="name" className="block text-sm font-medium mb-1.5">
+                <label htmlFor="name" className="block text-sm font-medium mb-1.5 text-gray-700">
                   Name
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-muted-foreground" />
+                    <User className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
                     id="name"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Your name"
                     required={!isSignIn}
                     disabled={isLoading || googleLoading}
@@ -174,19 +145,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
             )}
             
             <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-1.5">
+              <label htmlFor="email" className="block text-sm font-medium mb-1.5 text-gray-700">
                 Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-muted-foreground" />
+                  <Mail className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Your email"
                   required
                   disabled={isLoading || googleLoading}
@@ -195,19 +166,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
             </div>
             
             <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-1.5">
+              <label htmlFor="password" className="block text-sm font-medium mb-1.5 text-gray-700">
                 Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-muted-foreground" />
+                  <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Your password"
                   required
                   disabled={isLoading || googleLoading}
@@ -218,7 +189,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
             
             {isSignIn && (
               <div className="text-right">
-                <a href="#" className="text-sm text-primary hover:underline">
+                <a href="#" className="text-sm text-blue-600 hover:underline">
                   Forgot password?
                 </a>
               </div>
@@ -240,56 +211,29 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
               <div className="border-t border-border flex-grow" />
             </div>
             
-            <Button 
-              variant="outline" 
-              className="w-full" 
-              size="lg" 
+            <button
+              type="button"
               onClick={handleGoogleSignIn}
-              isLoading={googleLoading}
-              disabled={isLoading}
+              disabled={isLoading || googleLoading}
+              className="w-full flex items-center justify-center px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <Globe className="mr-2 h-4 w-4" />
-              <span>Google</span>
-            </Button>
+              {googleLoading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+              ) : (
+                <Globe className="mr-2 h-4 w-4" />
+              )}
+              <span>Continue with Google</span>
+            </button>
 
-            {/* Debug buttons for development */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="space-y-2">
-                <Button 
-                  variant="ghost" 
-                  className="w-full text-xs" 
-                  size="sm" 
-                  onClick={handleDebugTest}
-                  isLoading={debugLoading}
-                  disabled={isLoading || googleLoading}
-                >
-                  <Bug className="mr-2 h-3 w-3" />
-                  <span>Test Supabase Connection</span>
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  className="w-full text-xs" 
-                  size="sm" 
-                  onClick={() => {
-                    console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL || 'Not set')
-                    console.log('Current origin:', window.location.origin)
-                    console.log('Redirect URL:', `${window.location.origin}/auth/callback`)
-                  }}
-                  disabled={isLoading || googleLoading}
-                >
-                  <Bug className="mr-2 h-3 w-3" />
-                  <span>Debug OAuth Config</span>
-                </Button>
-              </div>
-            )}
+
           </form>
           
           <div className="mt-6 text-center text-sm">
-            <span className="text-muted-foreground">
+            <span className="text-gray-600">
               {isSignIn ? "Don't have an account? " : "Already have an account? "}
             </span>
             <button 
-              className="text-primary hover:underline" 
+              className="text-blue-600 hover:underline font-medium" 
               onClick={toggleMode}
               disabled={isLoading || googleLoading}
             >
