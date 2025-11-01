@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Camera, MapPin, Tag, AlertCircle, Info, Send } from 'lucide-react';
+import { Camera, MapPin, Tag, AlertCircle, Info, Send, Loader2, X, Upload, Image as ImageIcon } from 'lucide-react';
 
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
@@ -27,18 +27,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-
-// Form schema validation
-const formSchema = z.object({
-  title: z.string().min(5, 'Title must be at least 5 characters').max(100),
-  description: z.string().min(20, 'Description must be at least 20 characters'),
-  location: z.string().min(5, 'Location must be at least 5 characters'),
-  category: z.string().min(1, 'Please select a category'),
-  imageUrl: z.string().optional(),
-});
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { supabase } from '@/lib/supabase';
+import { uploadFile, getFileUrl } from '@/services/supabaseService';
 
 const categories = [
   "Infrastructure",
@@ -53,11 +44,23 @@ const categories = [
   "Other"
 ];
 
+// Form schema validation
+const formSchema = z.object({
+  title: z.string().min(5, 'Title must be at least 5 characters').max(100),
+  description: z.string().min(20, 'Description must be at least 20 characters'),
+  location: z.string().min(5, 'Location must be at least 5 characters'),
+  category: z.string().min(1, 'Please select a category'),
+  imageUrl: z.string().optional(),
+});
+
 const ReportIssue = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [showCameraOptions, setShowCameraOptions] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -70,17 +73,108 @@ const ReportIssue = () => {
     },
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      // In a real app, you would upload this to Firebase Storage
-      // For now, we'll just create a local preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-        form.setValue('imageUrl', reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image smaller than 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Set the file for later upload
+    setImageFile(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+      setShowCameraOptions(false);
+    };
+    reader.readAsDataURL(file);
+
+    toast({
+      title: "Image selected",
+      description: "Your image is ready to be uploaded with the report",
+    });
+  };
+
+  const handleCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Set the file for later upload
+    setImageFile(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+      setShowCameraOptions(false);
+    };
+    reader.readAsDataURL(file);
+
+    toast({
+      title: "Photo captured",
+      description: "Your photo is ready to be uploaded with the report",
+    });
+  };
+
+  const removeImage = () => {
+    setImagePreview(null);
+    setImageFile(null);
+    form.setValue('imageUrl', '');
+    setShowCameraOptions(false);
+  };
+
+  const uploadImage = async (file: File): Promise<string> => {
+    if (!file) return '';
+    
+    try {
+      setIsUploading(true);
+      console.log('Starting image upload...', file.name, file.size, 'bytes');
+      
+      // Create unique file path
+      const filePath = `issues/${Date.now()}_${file.name}`;
+      console.log('Uploading to path:', filePath);
+      
+      // Upload to Supabase Storage
+      const uploadData = await uploadFile(file, 'uploads', filePath);
+      console.log('Upload successful:', uploadData);
+      
+      // Get public URL
+      const publicUrl = getFileUrl('uploads', filePath);
+      console.log('Public URL obtained:', publicUrl);
+      
+      return publicUrl;
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      
+      // Provide specific error messages
+      if (error.message?.includes('unauthorized')) {
+        throw new Error('Storage access denied. Please check Supabase Storage policies.');
+      } else if (error.message?.includes('timeout')) {
+        throw new Error('Upload timeout. Please check your connection.');
+      }
+      
+      throw new Error(error.message || 'Failed to upload image');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -96,17 +190,46 @@ const ReportIssue = () => {
 
     setIsSubmitting(true);
     try {
-      // Add the issue to Firestore
-      await addDoc(collection(db, "issues"), {
-        ...values,
-        userId: currentUser.uid,
-        userEmail: currentUser.email,
-        userName: currentUser.displayName,
-        createdAt: serverTimestamp(),
-        status: "Open",
-        commentsCount: 0,
-        volunteersCount: 0,
-      });
+      let imageUrl = '';
+      
+      // Upload image if exists
+      if (imageFile) {
+        try {
+          console.log('Uploading image file:', imageFile.name);
+          imageUrl = await uploadImage(imageFile);
+          console.log('Image uploaded successfully:', imageUrl);
+        } catch (error: any) {
+          console.error("Error uploading image:", error);
+          const errorMessage = error.message || "Could not upload the image. Please try again.";
+          toast({
+            title: "Image upload failed",
+            description: errorMessage,
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Add the issue to Supabase
+      const { error } = await supabase
+        .from('issues')
+        .insert([
+          {
+            title: values.title,
+            description: values.description,
+            location: values.location,
+            category: values.category,
+            image: imageUrl || values.imageUrl,
+            created_by: currentUser.id,
+            status: 'reported',
+            comments_count: 0,
+            volunteers_count: 0,
+            created_at: new Date().toISOString(),
+          }
+        ]);
+
+      if (error) throw error;
 
       toast({
         title: "Issue reported",
@@ -235,51 +358,97 @@ const ReportIssue = () => {
                   
                   <div className="space-y-3">
                     <FormLabel>Add Photo (Optional)</FormLabel>
-                    <div className="border-2 border-dashed border-border rounded-lg p-4">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Camera className="h-8 w-8 text-muted-foreground" />
-                        <div className="text-sm text-center">
-                          <p>Drag and drop an image or</p>
-                          <label htmlFor="image-upload" className="text-primary hover:underline cursor-pointer">
-                            browse
-                          </label>
-                          <input
-                            id="image-upload"
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleImageChange}
-                          />
+                    <FormDescription>
+                      Upload a photo of the issue to help others understand the problem better
+                    </FormDescription>
+                    
+                    {!imagePreview ? (
+                      <div className="space-y-3">
+                        <div className="border-2 border-dashed border-border rounded-lg p-6 hover:border-primary/50 transition-colors">
+                          <div className="flex flex-col items-center justify-center gap-4">
+                            <div className="p-3 rounded-full bg-secondary">
+                              <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                            </div>
+                            <div className="text-sm text-center space-y-2">
+                              <p className="font-medium">Choose how to add a photo</p>
+                              <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                                {/* Camera Capture */}
+                                <label htmlFor="camera-capture" className="flex-1">
+                                  <div className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-border hover:border-primary hover:bg-secondary/50 cursor-pointer transition-all">
+                                    <Camera className="h-5 w-5" />
+                                    <span className="font-medium">Take Photo</span>
+                                  </div>
+                                  <input
+                                    id="camera-capture"
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    onChange={handleCameraCapture}
+                                  />
+                                </label>
+                                
+                                {/* File Upload */}
+                                <label htmlFor="image-upload" className="flex-1">
+                                  <div className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-border hover:border-primary hover:bg-secondary/50 cursor-pointer transition-all">
+                                    <Upload className="h-5 w-5" />
+                                    <span className="font-medium">Upload Image</span>
+                                  </div>
+                                  <input
+                                    id="image-upload"
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handleImageChange}
+                                  />
+                                </label>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-2">Maximum file size: 5MB</p>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    
-                    {imagePreview && (
-                      <div className="mt-4">
-                        <div className="relative w-full rounded-lg overflow-hidden aspect-video">
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="relative w-full rounded-lg overflow-hidden border-2 border-border">
                           <img 
                             src={imagePreview} 
                             alt="Issue preview" 
-                            className="w-full h-full object-cover"
+                            className="w-full h-auto max-h-96 object-contain bg-secondary"
                           />
                           <button
                             type="button"
-                            className="absolute top-2 right-2 p-1 rounded-full bg-destructive text-destructive-foreground"
-                            onClick={() => {
-                              setImagePreview(null);
-                              form.setValue('imageUrl', '');
-                            }}
+                            className="absolute top-3 right-3 p-2 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg transition-colors"
+                            onClick={removeImage}
+                            title="Remove image"
                           >
-                            <AlertCircle className="h-4 w-4" />
+                            <X className="h-4 w-4" />
                           </button>
+                        </div>
+                        <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg">
+                          <Info className="h-4 w-4 text-primary" />
+                          <p className="text-sm text-muted-foreground">
+                            This image will be uploaded and visible to all users when you submit the report
+                          </p>
                         </div>
                       </div>
                     )}
                   </div>
                   
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Info className="h-4 w-4" />
-                    <p>Your issue will be publicly visible to the community and local authorities.</p>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Info className="h-4 w-4" />
+                      <p>Your issue will be publicly visible to the community and local authorities.</p>
+                    </div>
+                    
+                    {imageFile && (
+                      <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+                        <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <p className="text-blue-900 dark:text-blue-100">
+                          Image will be uploaded when you submit. If upload fails, you can submit without the image.
+                        </p>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex justify-end gap-4">
@@ -290,11 +459,14 @@ const ReportIssue = () => {
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? (
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting || isUploading}
+                    >
+                      {isSubmitting || isUploading ? (
                         <span className="flex items-center gap-2">
-                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                          Submitting...
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {isUploading ? 'Uploading...' : 'Submitting...'}
                         </span>
                       ) : (
                         <span className="flex items-center gap-2">

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import FeaturedIssue from '@/components/FeaturedIssue';
 import IssueCard from '@/components/IssueCard';
 import AuthModal from '@/components/AuthModal';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { toast } from '@/hooks/use-toast';
 
 const featuredIssue = {

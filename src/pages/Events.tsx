@@ -3,8 +3,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { MapPin, Calendar, Users, Clock, ArrowRight, User } from 'lucide-react';
 import Navbar from '@/components/Navbar';
-import { useAuth } from "@/contexts/AuthContext";
-import { getEvents, createEvent, EventData, getPaginatedEvents } from "@/services/firestoreService";
+import { useAuth } from "@/contexts/SupabaseAuthContext";
+import { getEvents, createEvent, EventData, getPaginatedEvents } from "@/services/supabaseService";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from 'react-router-dom';
 

@@ -1,17 +1,20 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Mail, Lock, User, ArrowRight, Globe, Bug } from 'lucide-react';
 import Button from './Button';
 import { useToast } from "@/components/ui/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
-import { testFirebaseConnection, testAuthConnection } from "@/lib/firebase";
+import { useAuth } from "@/contexts/SupabaseAuthContext";
+import { testSupabaseConnection, testSupabaseAuth } from "@/lib/supabase";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  redirectTo?: string;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) => {
+  const navigate = useNavigate();
   const [isSignIn, setIsSignIn] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,6 +40,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           description: "Welcome back!",
         });
         onClose();
+        if (redirectTo) {
+          navigate(redirectTo);
+        }
       } else {
         // Sign up logic
         await signUp(email, password, name);
@@ -45,6 +51,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           description: "Your account has been created successfully",
         });
         onClose();
+        if (redirectTo) {
+          navigate(redirectTo);
+        }
       }
     } catch (error) {
       // Error handling is done in the context
@@ -63,6 +72,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         description: "Welcome back!",
       });
       onClose();
+      if (redirectTo) {
+        navigate(redirectTo);
+      }
     } catch (error) {
       // Error handling is done in the context
       console.error('Google auth error:', error);
@@ -74,18 +86,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const handleDebugTest = async () => {
     setDebugLoading(true);
     try {
-      const firestoreOk = await testFirebaseConnection();
-      const authOk = await testAuthConnection();
+      const supabaseOk = await testSupabaseConnection();
+      const authOk = await testSupabaseAuth();
       
-      if (firestoreOk && authOk) {
+      if (supabaseOk && authOk) {
         toast({
           title: "Connection Test",
-          description: "Firebase connections are working properly!",
+          description: "Supabase connections are working properly!",
         });
       } else {
         toast({
           title: "Connection Test",
-          description: "Some Firebase connections failed. Check console for details.",
+          description: "Some Supabase connections failed. Check console for details.",
           variant: "destructive",
         });
       }
@@ -136,9 +148,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             {isSignIn ? 'Welcome back' : 'Create an account'}
           </h2>
           <p className="text-muted-foreground mb-6">
-            {isSignIn 
-              ? 'Sign in to your account to continue' 
-              : 'Join our community to help improve your neighborhood'
+            {redirectTo === '/issues/report' 
+              ? 'Please sign in to report an issue and help improve your community'
+              : isSignIn 
+                ? 'Sign in to your account to continue' 
+                : 'Join our community to help improve your neighborhood'
             }
           </p>
           
@@ -256,7 +270,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 disabled={isLoading || googleLoading}
               >
                 <Bug className="mr-2 h-3 w-3" />
-                <span>Test Firebase Connection</span>
+                <span>Test Supabase Connection</span>
               </Button>
             )}
           </form>

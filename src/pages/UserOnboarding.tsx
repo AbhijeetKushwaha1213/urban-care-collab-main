@@ -27,9 +27,8 @@ import {
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { supabase } from '@/lib/supabase';
 
 // Form schema validation
 const formSchema = z.object({
@@ -86,14 +85,26 @@ const UserOnboarding = () => {
 
     setIsSubmitting(true);
     try {
-      // Add the user profile to Firestore
-      await setDoc(doc(db, "userProfiles", currentUser.uid), {
-        ...values,
-        userId: currentUser.uid,
-        email: currentUser.email,
-        createdAt: new Date(),
-        isOnboardingComplete: true,
-      });
+      // Add the user profile to Supabase
+      const { error } = await supabase
+        .from('user_profiles')
+        .upsert({
+          id: currentUser.id,
+          email: currentUser.email,
+          full_name: values.fullName,
+          age: parseInt(values.age),
+          gender: values.gender,
+          address: values.address,
+          city: values.city,
+          state: values.state,
+          zip_code: values.zipCode,
+          role: values.role,
+          bio: values.bio,
+          created_at: new Date().toISOString(),
+          is_onboarding_complete: true,
+        });
+
+      if (error) throw error;
 
       toast({
         title: "Profile created",

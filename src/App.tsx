@@ -3,7 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { AuthProvider, useAuth } from "./contexts/SupabaseAuthContext";
+import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Issues from "./pages/Issues";
 import IssueDetail from "./pages/IssueDetail";
@@ -14,6 +15,7 @@ import NotFound from "./pages/NotFound";
 import ReportIssue from "./pages/ReportIssue";
 import UserOnboarding from "./pages/UserOnboarding";
 import EventDetail from "./pages/EventDetail";
+import AuthorityDashboard from "./pages/AuthorityDashboard";
 
 const queryClient = new QueryClient();
 
@@ -21,7 +23,7 @@ const queryClient = new QueryClient();
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, isNewUser } = useAuth();
   
-  // If not logged in, redirect to home
+  // If not logged in, redirect to landing page
   if (!currentUser) {
     return <Navigate to="/" replace />;
   }
@@ -38,7 +40,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const OnboardingRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, isNewUser } = useAuth();
   
-  // If not logged in, redirect to home
+  // If not logged in, redirect to landing page
   if (!currentUser) {
     return <Navigate to="/" replace />;
   }
@@ -56,7 +58,8 @@ const AppRoutes = () => {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Index />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="/home" element={<Index />} />
         <Route path="/issues" element={<Issues />} />
         <Route path="/issues/:id" element={<IssueDetail />} />
         <Route path="/issues/report" element={
@@ -77,6 +80,7 @@ const AppRoutes = () => {
         <Route path="/events" element={<Events />} />
         <Route path="/events/:id" element={<EventDetail />} />
         <Route path="/about" element={<About />} />
+        <Route path="/authority-dashboard" element={<AuthorityDashboard />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>

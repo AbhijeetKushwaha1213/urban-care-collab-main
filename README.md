@@ -1,126 +1,159 @@
+# UrbanCare - Community Issue Reporting Platform
 
-# UrbanCare
+A modern web application built with React, TypeScript, and Supabase for reporting and managing community issues.
 
-![UrbanCare Logo](public/favicon.ico)
+## 🚀 Recent Migration: Firebase → Supabase
 
-## Overview
+This project has been successfully migrated from Firebase to Supabase for better developer experience and more powerful features.
 
-UrbanCare is a community-driven platform that empowers citizens to report and track urban issues in their neighborhoods. The platform connects residents with local authorities, enabling efficient communication and resolution of community problems such as potholes, broken street lights, garbage collection issues, and more.
+### What Changed
+- **Database**: Firestore → PostgreSQL (Supabase)
+- **Authentication**: Firebase Auth → Supabase Auth
+- **Storage**: Firebase Storage → Supabase Storage
+- **Real-time**: Firebase Realtime → Supabase Realtime (ready to use)
 
-## Features
+## 🛠️ Tech Stack
 
-- **Issue Reporting**: Users can report problems in their neighborhoods with photos, descriptions, and location data.
-- **Issue Tracking**: Real-time status updates on reported issues.
-- **Community Events**: Information about upcoming community events and initiatives.
-- **User Profiles**: Personalized user accounts with customizable profiles.
-- **Authentication**: Secure login and registration system powered by Firebase.
-- **Responsive Design**: Fully responsive interface that works on all devices.
+- **Frontend**: React 18, TypeScript, Vite
+- **Styling**: Tailwind CSS, shadcn/ui components
+- **Backend**: Supabase (PostgreSQL, Auth, Storage)
+- **State Management**: React Query (TanStack Query)
+- **Routing**: React Router v6
+- **Forms**: React Hook Form with Zod validation
 
-## Technology Stack
+## 📋 Prerequisites
 
-- React 18 with TypeScript
-- Vite for fast development and building
-- Tailwind CSS for styling
-- shadcn/ui for UI components
-- Firebase Authentication for user management
-- Firestore for database operations
-- React Router for navigation
-- React Query for data fetching
+- Node.js 18+ and npm
+- A Supabase account and project
 
+## 🚀 Quick Start
 
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js (v16 or higher)
-- npm or yarn package manager
-- Git
-
-### Installation
-
-1. Clone the repository:
+### 1. Clone and Install
 ```bash
-git clone https://github.com/yourusername/urbancare.git
+git clone <your-repo-url>
 cd urbancare
-```
-
-2. Install dependencies:
-```bash
 npm install
-# or
-yarn install
 ```
 
-3. Create a `.env` file in the root directory with your Firebase configuration:
-```
-VITE_FIREBASE_API_KEY=your_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
+### 2. Set Up Supabase
+
+#### Option A: Use the Setup Script
+```bash
+node setup-supabase.js
 ```
 
-4. Start the development server:
+#### Option B: Manual Setup
+1. Copy your Supabase project URL and anon key from your Supabase dashboard
+2. Update `src/lib/supabase.ts` with your credentials:
+```typescript
+const supabaseUrl = 'your-project-url'
+const supabaseAnonKey = 'your-anon-key'
+```
+
+### 3. Set Up Database Tables
+Run the SQL commands from `SUPABASE_SETUP.md` in your Supabase SQL Editor to create the required tables.
+
+### 4. Configure Authentication (Optional)
+- Go to Authentication > Providers in your Supabase dashboard
+- Enable Google OAuth if you want Google sign-in
+- Add your site URL to the allowed redirect URLs
+
+### 5. Run the Development Server
 ```bash
 npm run dev
-# or
-yarn dev
 ```
 
-5. Open your browser and navigate to `http://localhost:5173`
-
-### Building for Production
-
-To create a production build, run:
-```bash
-npm run build
-# or
-yarn build
-```
-
-The build artifacts will be stored in the `dist` directory.
-
-## Project Structure
+## 📁 Project Structure
 
 ```
-├── public/             # Public assets
-├── src/                # Source code
-│   ├── components/     # Reusable UI components
-│   ├── contexts/       # React contexts (e.g., AuthContext)
-│   ├── hooks/          # Custom React hooks
-│   ├── lib/            # Utility functions and configurations
-│   ├── pages/          # Page components
-│   ├── services/       # API services
-│   ├── App.tsx         # Main App component
-│   └── main.tsx        # Entry point
-├── .env                # Environment variables (not in repo)
-└── package.json        # Project dependencies
+src/
+├── components/          # Reusable UI components
+├── contexts/           # React contexts (Auth, etc.)
+├── hooks/              # Custom React hooks
+├── lib/                # Configuration files
+├── pages/              # Page components
+├── services/           # API service functions
+└── types/              # TypeScript type definitions
 ```
 
-## Contributing
+## 🔧 Key Features
+
+- **Smart Landing Page**: Choose between Citizen and Authority access
+- **User Authentication**: Sign up/in with email or Google
+- **Issue Reporting**: Report community issues with photos
+- **Event Management**: Create and manage community events
+- **User Profiles**: Comprehensive user profile management
+- **Authority Dashboard**: Advanced dashboard for authorities (coming soon)
+- **Real-time Updates**: Ready for real-time features with Supabase
+- **Responsive Design**: Works on all device sizes
+- **Type Safety**: Full TypeScript support
+
+## 🗄️ Database Schema
+
+The application uses the following main tables:
+- `user_profiles` - Extended user information
+- `issues` - Community issues and reports
+- `events` - Community events and activities
+
+See `SUPABASE_SETUP.md` for complete schema and setup instructions.
+
+## 🔐 Environment Variables (Optional)
+
+Create a `.env.local` file for environment-based configuration:
+
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_anon_key
+```
+
+Then update `src/lib/supabase.ts` to use environment variables:
+
+```typescript
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+```
+
+## 📚 Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
+
+## 🔍 Migration Notes
+
+If you're migrating from the Firebase version:
+
+1. **Data Migration**: Export your Firebase data and import it into Supabase
+2. **Authentication**: Users will need to re-authenticate
+3. **File Uploads**: Existing file URLs will need to be migrated to Supabase Storage
+4. **Real-time Features**: Can now be easily added using Supabase's real-time subscriptions
+
+See `MIGRATION_GUIDE.md` for detailed migration instructions.
+
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
-## License
+## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.
 
-## Acknowledgements
+## 🆘 Support
 
-- [shadcn/ui](https://ui.shadcn.com/) - Beautiful, accessible UI components
-- [Firebase](https://firebase.google.com/) - Authentication and database services
-- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
-- [React](https://reactjs.org/) - JavaScript library for building user interfaces
+- Check `SUPABASE_SETUP.md` for setup issues
+- Check `MIGRATION_GUIDE.md` for migration help
+- Open an issue for bugs or feature requests
 
-## Contact
+## 🎯 Roadmap
 
-If you have any questions or feedback, please reach out to us at:
-
-- Project Link: [https://lovable.dev/projects/08165ac0-dda0-4225-88f4-613965dc223e](https://lovable.dev/projects/08165ac0-dda0-4225-88f4-613965dc223e)
-- Your Email: your.email@example.com
+- [ ] Real-time notifications
+- [ ] Mobile app (React Native)
+- [ ] Advanced search and filtering
+- [ ] Community voting on issues
+- [ ] Integration with city services APIs
+- [ ] Multi-language support

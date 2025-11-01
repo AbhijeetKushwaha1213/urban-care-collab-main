@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getEventById, EventData } from '@/services/firestoreService';
+import { getEventById, EventData } from '@/services/supabaseService';
 import { Button } from '@/components/ui/button';
 import Navbar from '@/components/Navbar';
 

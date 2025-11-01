@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, User, Bell, MapPin, LogOut } from 'lucide-react';
 import Button from './Button';
 import AuthModal from './AuthModal';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 

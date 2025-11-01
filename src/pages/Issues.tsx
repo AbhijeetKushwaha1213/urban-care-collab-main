@@ -1,10 +1,12 @@
 
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Search, Filter, Plus, MapPin, Calendar, MessageSquare, Users, SlidersHorizontal } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Button from '@/components/Button';
 import IssueCard from '@/components/IssueCard';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import AuthModal from '@/components/AuthModal';
 
 // Sample data
 const issuesData = [
@@ -80,11 +82,24 @@ const categories = ["All", "Trash", "Water", "Infrastructure", "Drainage", "Othe
 const sortOptions = ["Newest", "Most Comments", "Most Volunteers", "Oldest"];
 
 const Issues = () => {
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortBy, setSortBy] = useState('Newest');
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   
+  const handleReportIssue = () => {
+    if (currentUser) {
+      // User is logged in, navigate to report page
+      navigate('/issues/report');
+    } else {
+      // User is not logged in, show auth modal
+      setAuthModalOpen(true);
+    }
+  };
+
   // Filter and sort issues
   const filteredIssues = issuesData.filter(issue => {
     const matchesSearch = issue.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -117,12 +132,14 @@ const Issues = () => {
                 <SlidersHorizontal className="h-4 w-4 mr-2" />
                 Filters
               </Button>
-              <Link to="/issues/new">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Report Issue
-                </Button>
-              </Link>
+              <Button 
+                onClick={handleReportIssue}
+                title={!currentUser ? "Sign in to report an issue" : "Report a new issue"}
+                className={!currentUser ? "opacity-90" : ""}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {!currentUser ? "Sign in to Report" : "Report Issue"}
+              </Button>
             </div>
           </div>
           
@@ -210,6 +227,18 @@ const Issues = () => {
           </div>
         </div>
       </div>
+
+      {/* Floating Action Button for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden">
+        <Button 
+          onClick={handleReportIssue}
+          className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+          size="sm"
+          title={!currentUser ? "Sign in to report an issue" : "Report a new issue"}
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      </div>
       
       {/* Footer */}
       <footer className="bg-secondary/80 py-8 px-4 md:px-6">
@@ -227,6 +256,13 @@ const Issues = () => {
           </div>
         </div>
       </footer>
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={authModalOpen} 
+        onClose={() => setAuthModalOpen(false)}
+        redirectTo="/issues/report"
+      />
     </div>
   );
 };

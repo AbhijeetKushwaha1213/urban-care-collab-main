@@ -6,9 +6,8 @@ import Navbar from '@/components/Navbar';
 import Button from '@/components/Button';
 import IssueCard from '@/components/IssueCard';
 import EditProfileModal from '@/components/EditProfileModal';
-import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
 
 const Profile = () => {
@@ -29,19 +28,23 @@ const Profile = () => {
     const fetchUserData = async () => {
       setIsLoading(true);
       try {
-        const userDoc = await getDoc(doc(db, "userProfiles", currentUser.uid));
+        const { data: userProfile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', currentUser.id)
+          .single();
         
-        if (userDoc.exists()) {
+        if (userProfile && !profileError) {
           setUserData({
-            name: userDoc.data().fullName || currentUser.displayName,
-            avatar: currentUser.photoURL,
-            location: `${userDoc.data().city || ''}, ${userDoc.data().state || ''}`,
-            joinDate: new Date(userDoc.data().createdAt.toDate()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-            badges: userDoc.data().badges || ["New Member"],
+            name: userProfile.full_name || currentUser.user_metadata?.full_name || "User",
+            avatar: currentUser.user_metadata?.avatar_url,
+            location: `${userProfile.city || ''}, ${userProfile.state || ''}`,
+            joinDate: new Date(userProfile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+            badges: userProfile.badges || ["New Member"],
             email: currentUser.email,
-            phone: userDoc.data().phone || "Not provided",
-            address: userDoc.data().address || "Not provided",
-            bio: userDoc.data().bio || "No bio provided",
+            phone: userProfile.phone || "Not provided",
+            address: userProfile.address || "Not provided",
+            bio: userProfile.bio || "No bio provided",
             stats: {
               issuesReported: 0,
               issuesSolved: 0,
@@ -51,8 +54,8 @@ const Profile = () => {
         } else {
           // If no profile exists, use basic auth data
           setUserData({
-            name: currentUser.displayName || "User",
-            avatar: currentUser.photoURL,
+            name: currentUser.user_metadata?.full_name || "User",
+            avatar: currentUser.user_metadata?.avatar_url,
             location: "Location not set",
             joinDate: "Recently joined",
             badges: ["New Member"],
@@ -69,24 +72,23 @@ const Profile = () => {
         }
 
         // Fetch user's reported issues
-        const issuesQuery = query(
-          collection(db, "issues"),
-          where("userId", "==", currentUser.uid),
-          orderBy("createdAt", "desc"),
-          limit(5)
-        );
+        const { data: issues, error: issuesError } = await supabase
+          .from('issues')
+          .select('*')
+          .eq('created_by', currentUser.id)
+          .order('created_at', { ascending: false })
+          .limit(5);
         
-        const issuesSnapshot = await getDocs(issuesQuery);
-        const issues = issuesSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          date: doc.data().createdAt ? new Date(doc.data().createdAt.toDate()).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Recently"
-        }));
-        
-        setUserIssues(issues);
-        
-        // Update stats
-        if (userData) {
+        if (issues && !issuesError) {
+          const formattedIssues = issues.map(issue => ({
+            id: issue.id,
+            ...issue,
+            date: new Date(issue.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+          }));
+          
+          setUserIssues(formattedIssues);
+          
+          // Update stats
           setUserData(prev => ({
             ...prev,
             stats: {

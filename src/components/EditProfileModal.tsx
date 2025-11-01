@@ -33,11 +33,8 @@ import {
 } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { updateProfile } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { supabase } from '@/lib/supabase';
 
 // Form schema validation
 const formSchema = z.object({
@@ -79,35 +76,38 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) 
       
       setIsLoading(true);
       try {
-        const userDoc = await getDoc(doc(db, "userProfiles", currentUser.uid));
+        const { data: userProfile, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', currentUser.id)
+          .single();
         
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
+        if (userProfile && !error) {
           form.reset({
-            fullName: userData.fullName || currentUser.displayName || '',
+            fullName: userProfile.full_name || currentUser.user_metadata?.full_name || '',
             email: currentUser.email || '',
-            phone: userData.phone || '',
-            address: userData.address || '',
-            bio: userData.bio || '',
-            avatarUrl: currentUser.photoURL || '',
+            phone: userProfile.phone || '',
+            address: userProfile.address || '',
+            bio: userProfile.bio || '',
+            avatarUrl: userProfile.avatar_url || '',
           });
           
-          if (currentUser.photoURL) {
-            setAvatarPreview(currentUser.photoURL);
+          if (userProfile.avatar_url) {
+            setAvatarPreview(userProfile.avatar_url);
           }
         } else {
           // If no profile exists yet, use auth data
           form.reset({
-            fullName: currentUser.displayName || '',
+            fullName: currentUser.user_metadata?.full_name || '',
             email: currentUser.email || '',
             phone: '',
             address: '',
             bio: '',
-            avatarUrl: currentUser.photoURL || '',
+            avatarUrl: currentUser.user_metadata?.avatar_url || '',
           });
           
-          if (currentUser.photoURL) {
-            setAvatarPreview(currentUser.photoURL);
+          if (currentUser.user_metadata?.avatar_url) {
+            setAvatarPreview(currentUser.user_metadata.avatar_url);
           }
         }
       } catch (error) {
@@ -128,7 +128,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // In a real app, you would upload this to Firebase Storage
+      // In a real app, you would upload this to Supabase Storage
       // For now, we'll just create a local preview
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -151,21 +151,30 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) 
 
     setIsSubmitting(true);
     try {
-      // Update display name in Firebase Auth
-      await updateProfile(currentUser, {
-        displayName: values.fullName,
-        // In a real app, you would upload the avatar to Firebase Storage and use the URL
-        photoURL: values.avatarUrl || currentUser.photoURL,
+      // Update user profile in Supabase
+      const { error } = await supabase
+        .from('user_profiles')
+        .upsert({
+          id: currentUser.id,
+          full_name: values.fullName,
+          phone: values.phone,
+          address: values.address,
+          bio: values.bio,
+          avatar_url: values.avatarUrl,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+
+      // Update auth metadata if needed
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          full_name: values.fullName,
+          avatar_url: values.avatarUrl,
+        }
       });
-      
-      // Update user profile in Firestore
-      await updateDoc(doc(db, "userProfiles", currentUser.uid), {
-        fullName: values.fullName,
-        phone: values.phone,
-        address: values.address,
-        bio: values.bio,
-        updatedAt: new Date(),
-      });
+
+      if (authError) console.warn('Auth metadata update failed:', authError);
 
       toast({
         title: "Profile updated",
