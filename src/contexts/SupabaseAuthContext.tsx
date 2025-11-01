@@ -9,7 +9,7 @@ interface AuthContextType {
   loading: boolean
   isNewUser: boolean
   hasUnauthorizedDomainError: boolean
-  signUp: (email: string, password: string, name: string) => Promise<void>
+  signUp: (email: string, password: string, name: string, userType?: string, department?: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: (redirectTo?: string) => Promise<void>
   logOut: () => Promise<void>
@@ -83,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe()
   }, [])
 
-  const signUp = async (email: string, password: string, name: string) => {
+  const signUp = async (email: string, password: string, name: string, userType: string = 'citizen', department?: string) => {
     try {
       console.log('Attempting to sign up:', email)
       const { data, error } = await supabase.auth.signUp({
@@ -109,6 +109,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               id: data.user.id,
               email: data.user.email,
               full_name: name,
+              user_type: userType,
+              department: userType === 'authority' ? department : null,
               created_at: new Date().toISOString(),
               is_onboarding_complete: false,
             }

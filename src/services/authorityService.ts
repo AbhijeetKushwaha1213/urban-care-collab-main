@@ -37,11 +37,11 @@ export const getDashboardStats = async (): Promise<AuthorityStats> => {
     const inProgress = issues?.filter(issue => issue.status === 'in-progress').length || 0
     const resolved = issues?.filter(issue => issue.status === 'resolved').length || 0
     
-    // Calculate resolved today (in a real app, you'd filter by today's date)
+    // Calculate resolved today (using created_at as approximation since updated_at doesn't exist)
     const today = new Date().toISOString().split('T')[0]
     const resolvedToday = issues?.filter(issue => 
       issue.status === 'resolved' && 
-      issue.updated_at?.startsWith(today)
+      issue.created_at?.startsWith(today)
     ).length || Math.floor(resolved * 0.1) // Mock data
 
     return {
@@ -115,8 +115,7 @@ const calculatePriority = (category: string, createdAt: string): 'low' | 'medium
 export const updateIssueStatus = async (issueId: string, status: string, assignedTo?: string) => {
   try {
     const updateData: any = { 
-      status,
-      updated_at: new Date().toISOString()
+      status
     }
 
     if (assignedTo) {
@@ -128,7 +127,10 @@ export const updateIssueStatus = async (issueId: string, status: string, assigne
       .update(updateData)
       .eq('id', issueId)
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase error details:', error)
+      throw error
+    }
 
     return { success: true }
   } catch (error) {
@@ -142,8 +144,7 @@ export const assignIssue = async (issueId: string, assignedTo: string, departmen
   try {
     const updateData: any = {
       assigned_to: assignedTo,
-      status: 'in-progress',
-      updated_at: new Date().toISOString()
+      status: 'in-progress'
     }
 
     if (department) {

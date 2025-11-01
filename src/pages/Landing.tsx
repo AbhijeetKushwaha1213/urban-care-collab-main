@@ -21,7 +21,7 @@ export default function Landing() {
   const handleCitizenAccess = () => {
     if (currentUser) {
       // User is already logged in, redirect directly
-      navigate('/dashboard');
+      navigate('/issues');
     } else {
       // User not logged in, show auth modal
       setSelectedUserType('citizen');
@@ -44,7 +44,7 @@ export default function Landing() {
     // After successful authentication, redirect based on selected user type
     setAuthModalOpen(false);
     if (selectedUserType === 'citizen') {
-      navigate('/dashboard');
+      navigate('/issues');
     } else if (selectedUserType === 'authority') {
       navigate('/authority-dashboard');
     }
@@ -214,7 +214,8 @@ export default function Landing() {
       <AuthModal 
         isOpen={authModalOpen} 
         onClose={handleAuthClose}
-        redirectTo={selectedUserType === 'citizen' ? '/dashboard' : '/authority-dashboard'}
+        redirectTo={selectedUserType === 'citizen' ? '/issues' : '/authority-dashboard'}
+        userType={selectedUserType || 'citizen'}
       />
       </div>
     </div>

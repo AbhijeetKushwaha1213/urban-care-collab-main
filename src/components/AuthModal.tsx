@@ -10,16 +10,33 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   redirectTo?: string;
+  userType?: 'citizen' | 'authority';
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo, userType = 'citizen' }) => {
   const navigate = useNavigate();
   const [isSignIn, setIsSignIn] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [department, setDepartment] = useState('');
+  const [customDepartment, setCustomDepartment] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  const departments = [
+    'Public Works',
+    'Transportation',
+    'Water & Sewerage',
+    'Electricity',
+    'Health Department',
+    'Environmental Services',
+    'Parks & Recreation',
+    'Building & Planning',
+    'Police Department',
+    'Fire Department',
+    'Other'
+  ];
 
   const { toast } = useToast();
   const { signIn, signUp, signInWithGoogle } = useAuth();
@@ -44,10 +61,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
         }
       } else {
         // Sign up logic
-        await signUp(email, password, name);
+        const finalDepartment = department === 'Other' ? customDepartment : department;
+        await signUp(email, password, name, userType, finalDepartment);
         toast({
           title: "Account created",
-          description: "Your account has been created successfully",
+          description: userType === 'authority' 
+            ? "Your authority account has been created successfully" 
+            : "Your account has been created successfully",
         });
         onClose();
         if (redirectTo) {
@@ -83,6 +103,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
     setEmail('');
     setPassword('');
     setName('');
+    setDepartment('');
+    setCustomDepartment('');
   };
 
   const handleClose = () => {
@@ -90,6 +112,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
     setEmail('');
     setPassword('');
     setName('');
+    setDepartment('');
+    setCustomDepartment('');
     setIsLoading(false);
     setGoogleLoading(false);
     onClose();
@@ -109,39 +133,80 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo }) =>
         
         <div className="p-6 sm:p-8">
           <h2 className="text-2xl font-semibold mb-1 text-gray-900">
-            {isSignIn ? 'Welcome back' : 'Create an account'}
+            {isSignIn ? 'Welcome back' : `Create ${userType === 'authority' ? 'Authority' : 'Citizen'} Account`}
           </h2>
           <p className="text-gray-600 mb-6">
             {redirectTo === '/issues/report' 
               ? 'Please sign in to report an issue and help improve your community'
               : isSignIn 
-                ? 'Sign in to your account to continue' 
-                : 'Join our community to help improve your neighborhood'
+                ? `Sign in to your ${userType} account to continue` 
+                : userType === 'authority'
+                  ? 'Join as an authority to manage and resolve community issues'
+                  : 'Join our community to help improve your neighborhood'
             }
           </p>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isSignIn && (
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium mb-1.5 text-gray-700">
-                  Name
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-gray-400" />
+              <>
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium mb-1.5 text-gray-700">
+                    Name
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="name"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Your name"
+                      required={!isSignIn}
+                      disabled={isLoading || googleLoading}
+                    />
                   </div>
-                  <input
-                    id="name"
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Your name"
-                    required={!isSignIn}
-                    disabled={isLoading || googleLoading}
-                  />
                 </div>
-              </div>
+
+                {userType === 'authority' && (
+                  <div>
+                    <label htmlFor="department" className="block text-sm font-medium mb-1.5 text-gray-700">
+                      Department
+                    </label>
+                    <select
+                      id="department"
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required={!isSignIn && userType === 'authority'}
+                      disabled={isLoading || googleLoading}
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map((dept) => (
+                        <option key={dept} value={dept}>
+                          {dept}
+                        </option>
+                      ))}
+                    </select>
+                    
+                    {department === 'Other' && (
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          value={customDepartment}
+                          onChange={(e) => setCustomDepartment(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Enter your department"
+                          required={department === 'Other'}
+                          disabled={isLoading || googleLoading}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
             
             <div>

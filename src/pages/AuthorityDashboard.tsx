@@ -25,13 +25,22 @@ import {
   FileText,
   Settings,
   Bell,
-  Download
+  Download,
+  User,
+  LogOut,
+  Edit
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
 import { getDashboardStats, getIssuesWithPriority, updateIssueStatus as updateStatus } from '@/services/authorityService';
 import NotificationCenter from '@/components/NotificationCenter';
 import IssueDetailModal from '@/components/IssueDetailModal';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 interface Issue {
   id: string;
@@ -56,6 +65,7 @@ interface DashboardStats {
 
 export default function AuthorityDashboard() {
   const navigate = useNavigate();
+  const { currentUser, logOut } = useAuth();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
     totalReports: 0,
@@ -72,15 +82,81 @@ export default function AuthorityDashboard() {
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [issueDetailOpen, setIssueDetailOpen] = useState(false);
+  
+  // Profile related state
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [authorityProfile, setAuthorityProfile] = useState<any>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    full_name: '',
+    department: '',
+    phone: '',
+    bio: '',
+    avatar_url: ''
+  });
+  const [tasksAssigned, setTasksAssigned] = useState(0);
+  const [tasksSolved, setTasksSolved] = useState(0);
 
   useEffect(() => {
     fetchDashboardData();
+    fetchAuthorityProfile();
     
     // Auto-refresh every 30 seconds
     const interval = setInterval(fetchDashboardData, 30000);
     
     return () => clearInterval(interval);
   }, []);
+
+  const fetchAuthorityProfile = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single();
+
+      if (error) throw error;
+
+      // Check if user is actually an authority
+      if (profile?.user_type !== 'authority') {
+        console.warn('User is not an authority:', profile?.user_type);
+        toast({
+          title: "Access Warning",
+          description: "You may not have authority permissions to update issues",
+          variant: "destructive",
+        });
+      }
+
+      setAuthorityProfile(profile);
+      setProfileForm({
+        full_name: profile.full_name || '',
+        department: profile.department || '',
+        phone: profile.phone || '',
+        bio: profile.bio || '',
+        avatar_url: profile.avatar_url || ''
+      });
+
+      // Fetch task statistics
+      const { data: assignedTasks, error: assignedError } = await supabase
+        .from('issues')
+        .select('id')
+        .eq('assigned_to', currentUser.id);
+
+      const { data: solvedTasks, error: solvedError } = await supabase
+        .from('issues')
+        .select('id')
+        .eq('assigned_to', currentUser.id)
+        .eq('status', 'resolved');
+
+      if (!assignedError) setTasksAssigned(assignedTasks?.length || 0);
+      if (!solvedError) setTasksSolved(solvedTasks?.length || 0);
+
+    } catch (error) {
+      console.error('Error fetching authority profile:', error);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -144,6 +220,7 @@ export default function AuthorityDashboard() {
 
   const updateIssueStatus = async (issueId: string, newStatus: string) => {
     try {
+      console.log('Attempting to update issue:', issueId, 'to status:', newStatus);
       await updateStatus(issueId, newStatus);
 
       // Update local state
@@ -158,11 +235,20 @@ export default function AuthorityDashboard() {
 
       // Refresh stats
       fetchDashboardData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating issue status:', error);
+      
+      let errorMessage = "Failed to update issue status";
+      if (error?.message) {
+        errorMessage += `: ${error.message}`;
+      }
+      if (error?.code) {
+        errorMessage += ` (Code: ${error.code})`;
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to update issue status",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -171,6 +257,92 @@ export default function AuthorityDashboard() {
   const handleViewIssue = (issue: Issue) => {
     setSelectedIssue(issue);
     setIssueDetailOpen(true);
+  };
+
+  const handleProfileUpdate = async () => {
+    if (!currentUser) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          full_name: profileForm.full_name,
+          department: profileForm.department,
+          phone: profileForm.phone,
+          bio: profileForm.bio,
+          avatar_url: profileForm.avatar_url,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentUser.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully",
+      });
+
+      setEditingProfile(false);
+      fetchAuthorityProfile();
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${currentUser.id}-${Math.random()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('user-uploads')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('user-uploads')
+        .getPublicUrl(filePath);
+
+      setProfileForm(prev => ({ ...prev, avatar_url: publicUrl }));
+
+      toast({
+        title: "Image Uploaded",
+        description: "Profile image uploaded successfully",
+      });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: "Upload Error",
+        description: "Failed to upload image",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await logOut();
+      navigate('/');
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
+
+  const getUserInitials = () => {
+    if (!authorityProfile?.full_name) return "A";
+    const names = authorityProfile.full_name.split(" ");
+    if (names.length === 1) return names[0].charAt(0).toUpperCase();
+    return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
   };
 
   const filteredIssues = issues.filter(issue => {
@@ -222,9 +394,39 @@ export default function AuthorityDashboard() {
                 <Download className="h-4 w-4 mr-2" />
                 Export
               </Button>
-              <div className="text-sm text-gray-500">
-                Welcome, Authority User
-              </div>
+              
+              {/* Profile Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={authorityProfile?.avatar_url || undefined} />
+                      <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                    </Avatar>
+                    <span className="hidden sm:inline">
+                      {authorityProfile?.full_name || 'Authority User'}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => setProfileModalOpen(true)}>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>View Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    setProfileModalOpen(true);
+                    setEditingProfile(true);
+                  }}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    <span>Edit Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Sign out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
@@ -562,6 +764,158 @@ export default function AuthorityDashboard() {
         }}
         onStatusUpdate={updateIssueStatus}
       />
+
+      {/* Profile Modal */}
+      <Dialog open={profileModalOpen} onOpenChange={setProfileModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">
+              {editingProfile ? 'Edit Profile' : 'Authority Profile'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {/* Profile Header */}
+            <div className="flex items-center space-x-6">
+              <div className="relative">
+                <Avatar className="h-24 w-24">
+                  <AvatarImage src={profileForm.avatar_url || authorityProfile?.avatar_url} />
+                  <AvatarFallback className="text-2xl">{getUserInitials()}</AvatarFallback>
+                </Avatar>
+                {editingProfile && (
+                  <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
+                    <label className="cursor-pointer">
+                      <Edit className="h-6 w-6 text-white" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold">
+                  {authorityProfile?.full_name || 'Authority User'}
+                </h3>
+                <p className="text-gray-600">{authorityProfile?.department || 'Department not specified'}</p>
+                <p className="text-sm text-gray-500">
+                  Joined {new Date(authorityProfile?.created_at).toLocaleDateString('en-US', { 
+                    month: 'long', 
+                    year: 'numeric' 
+                  })}
+                </p>
+              </div>
+            </div>
+
+            {/* Task Statistics */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-blue-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-blue-600">{tasksAssigned}</div>
+                <div className="text-sm text-blue-800">Tasks Assigned</div>
+              </div>
+              <div className="bg-green-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-green-600">{tasksSolved}</div>
+                <div className="text-sm text-green-800">Tasks Solved</div>
+              </div>
+            </div>
+
+            {editingProfile ? (
+              /* Edit Form */
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="full_name">Full Name</Label>
+                  <Input
+                    id="full_name"
+                    value={profileForm.full_name}
+                    onChange={(e) => setProfileForm(prev => ({ ...prev, full_name: e.target.value }))}
+                    placeholder="Enter your full name"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="department">Department</Label>
+                  <Input
+                    id="department"
+                    value={profileForm.department}
+                    onChange={(e) => setProfileForm(prev => ({ ...prev, department: e.target.value }))}
+                    placeholder="Enter your department"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    value={profileForm.phone}
+                    onChange={(e) => setProfileForm(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="Enter your phone number"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="bio">Bio</Label>
+                  <Textarea
+                    id="bio"
+                    value={profileForm.bio}
+                    onChange={(e) => setProfileForm(prev => ({ ...prev, bio: e.target.value }))}
+                    placeholder="Tell us about yourself and your role"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setEditingProfile(false);
+                      setProfileForm({
+                        full_name: authorityProfile?.full_name || '',
+                        department: authorityProfile?.department || '',
+                        phone: authorityProfile?.phone || '',
+                        bio: authorityProfile?.bio || '',
+                        avatar_url: authorityProfile?.avatar_url || ''
+                      });
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleProfileUpdate}>
+                    Save Changes
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* View Profile */
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium text-gray-700">Email</Label>
+                  <p className="text-gray-900">{currentUser?.email}</p>
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium text-gray-700">Phone</Label>
+                  <p className="text-gray-900">{authorityProfile?.phone || 'Not provided'}</p>
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium text-gray-700">Bio</Label>
+                  <p className="text-gray-900">{authorityProfile?.bio || 'No bio provided'}</p>
+                </div>
+
+                <div className="flex justify-end pt-4">
+                  <Button onClick={() => setEditingProfile(true)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
