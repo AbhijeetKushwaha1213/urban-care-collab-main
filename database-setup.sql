@@ -78,6 +78,7 @@ CREATE TABLE issues (
   status TEXT DEFAULT 'reported',
   comments_count INTEGER DEFAULT 0,
   volunteers_count INTEGER DEFAULT 0,
+  view_count INTEGER DEFAULT 0,
   created_by UUID REFERENCES auth.users(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -97,3 +98,60 @@ CREATE POLICY "Users can update own issues" ON issues
 
 CREATE POLICY "Users can delete own issues" ON issues
   FOR DELETE USING (auth.uid() = created_by);
+
+-- Function to increment view count atomically
+CREATE OR REPLACE FUNCTION increment_view_count(issue_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE issues 
+  SET view_count = COALESCE(view_count, 0) + 1 
+  WHERE id = issue_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Comments Table (for future use)
+CREATE TABLE issue_comments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  issue_id UUID REFERENCES issues(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id),
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS for comments
+ALTER TABLE issue_comments ENABLE ROW LEVEL SECURITY;
+
+-- Policies for comments
+CREATE POLICY "Anyone can view comments" ON issue_comments
+  FOR SELECT USING (true);
+
+CREATE POLICY "Authenticated users can create comments" ON issue_comments
+  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Users can update own comments" ON issue_comments
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own comments" ON issue_comments
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- User Upvotes Table (to track who upvoted what)
+CREATE TABLE user_upvotes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  issue_id UUID REFERENCES issues(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, issue_id)
+);
+
+-- Enable RLS for upvotes
+ALTER TABLE user_upvotes ENABLE ROW LEVEL SECURITY;
+
+-- Policies for upvotes
+CREATE POLICY "Users can view own upvotes" ON user_upvotes
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own upvotes" ON user_upvotes
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own upvotes" ON user_upvotes
+  FOR DELETE USING (auth.uid() = user_id);

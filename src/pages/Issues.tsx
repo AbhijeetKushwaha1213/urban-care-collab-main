@@ -94,6 +94,17 @@ const Issues = () => {
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Handle upvote updates from IssueCard
+  const handleUpvoteUpdate = (issueId: string, newCount: number) => {
+    setIssues(prevIssues => 
+      prevIssues.map(issue => 
+        issue.id === issueId 
+          ? { ...issue, volunteersCount: newCount }
+          : issue
+      )
+    );
+  };
+
   // Fetch issues from Supabase
   const fetchIssues = async () => {
     setLoading(true);
@@ -148,6 +159,41 @@ const Issues = () => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  // Real-time subscription for all issues updates
+  useEffect(() => {
+    const subscription = supabase
+      .channel('issues-updates')
+      .on('postgres_changes', 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'issues'
+        }, 
+        (payload) => {
+          console.log('Real-time issue update:', payload);
+          if (payload.new) {
+            setIssues(prevIssues => 
+              prevIssues.map(issue => 
+                issue.id === payload.new.id 
+                  ? {
+                      ...issue,
+                      volunteersCount: payload.new.volunteers_count || 0,
+                      commentsCount: payload.new.comments_count || 0,
+                      status: payload.new.status
+                    }
+                  : issue
+              )
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Helper function to format date
@@ -294,7 +340,11 @@ const Issues = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredIssues.length > 0 ? (
                 filteredIssues.map(issue => (
-                  <IssueCard key={issue.id} {...issue} />
+                  <IssueCard 
+                    key={issue.id} 
+                    {...issue} 
+                    onUpvoteUpdate={handleUpvoteUpdate}
+                  />
                 ))
               ) : (
                 <div className="col-span-full py-16 text-center">

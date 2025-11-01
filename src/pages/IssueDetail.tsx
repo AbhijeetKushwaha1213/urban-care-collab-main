@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MapPin, Calendar, ArrowLeft, Send, ThumbsUp, MessageSquare, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { MapPin, Calendar, ArrowLeft, Send, ThumbsUp, MessageSquare, AlertCircle, CheckCircle, Clock, Eye, X } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
@@ -53,26 +54,16 @@ const IssueDetail = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const [comment, setComment] = useState('');
-  const [comments, setComments] = useState([
-    {
-      id: "c1",
-      user: { name: "Sarah Miller", avatar: "" },
-      content: "I noticed this issue too. It really needs attention from the authorities.",
-      timestamp: "2 days ago"
-    },
-    {
-      id: "c2",
-      user: { name: "David Wilson", avatar: "" },
-      content: "Thanks for reporting this. I'll help spread awareness in the community.",
-      timestamp: "1 day ago"
-    }
-  ]);
+  const [comments, setComments] = useState([]);
   const [issue, setIssue] = useState(null);
   const [loading, setLoading] = useState(true);
   const [upvoted, setUpvoted] = useState(false);
   const [upvoteCount, setUpvoteCount] = useState(0);
+  const [viewCount, setViewCount] = useState(0);
+  const [commentModalOpen, setCommentModalOpen] = useState(false);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
 
-  // Fetch issue data
+  // Fetch issue data and track views
   useEffect(() => {
     const fetchIssue = async () => {
       if (!id) return;
@@ -88,6 +79,16 @@ const IssueDetail = () => {
         
         setIssue(data);
         setUpvoteCount(data.volunteers_count || 0);
+        setViewCount(data.view_count || 0);
+        
+        // Increment view count
+        await incrementViewCount();
+        
+        // Check if user has upvoted (you can implement this with a separate table)
+        // For now, we'll use localStorage as a simple solution
+        const userUpvotes = JSON.parse(localStorage.getItem('userUpvotes') || '[]');
+        setUpvoted(userUpvotes.includes(id));
+        
       } catch (error) {
         console.error('Error fetching issue:', error);
         toast({
@@ -103,7 +104,64 @@ const IssueDetail = () => {
     fetchIssue();
   }, [id, toast]);
 
-  // Handle upvote
+  // Increment view count
+  const incrementViewCount = async () => {
+    try {
+      const { error } = await supabase.rpc('increment_view_count', {
+        issue_id: id
+      });
+      
+      if (error) {
+        // Fallback: manual increment
+        const { data: currentIssue } = await supabase
+          .from('issues')
+          .select('view_count')
+          .eq('id', id)
+          .single();
+          
+        if (currentIssue) {
+          const newViewCount = (currentIssue.view_count || 0) + 1;
+          await supabase
+            .from('issues')
+            .update({ view_count: newViewCount })
+            .eq('id', id);
+          setViewCount(newViewCount);
+        }
+      }
+    } catch (error) {
+      console.error('Error incrementing view count:', error);
+    }
+  };
+
+  // Real-time subscription for upvotes and comments
+  useEffect(() => {
+    if (!id) return;
+
+    const subscription = supabase
+      .channel(`issue-${id}`)
+      .on('postgres_changes', 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'issues',
+          filter: `id=eq.${id}`
+        }, 
+        (payload) => {
+          console.log('Real-time update:', payload);
+          if (payload.new) {
+            setUpvoteCount(payload.new.volunteers_count || 0);
+            setViewCount(payload.new.view_count || 0);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [id]);
+
+  // Handle upvote with real-time updates
   const handleUpvote = async () => {
     if (!currentUser) {
       toast({
@@ -115,8 +173,10 @@ const IssueDetail = () => {
     }
 
     try {
-      const newCount = upvoted ? upvoteCount - 1 : upvoteCount + 1;
+      const newUpvoteState = !upvoted;
+      const newCount = newUpvoteState ? upvoteCount + 1 : upvoteCount - 1;
       
+      // Update database
       const { error } = await supabase
         .from('issues')
         .update({ volunteers_count: newCount })
@@ -124,12 +184,23 @@ const IssueDetail = () => {
 
       if (error) throw error;
 
-      setUpvoted(!upvoted);
+      // Update local state
+      setUpvoted(newUpvoteState);
       setUpvoteCount(newCount);
       
+      // Store user's upvote in localStorage (in production, use a proper user_upvotes table)
+      const userUpvotes = JSON.parse(localStorage.getItem('userUpvotes') || '[]');
+      if (newUpvoteState) {
+        userUpvotes.push(id);
+      } else {
+        const index = userUpvotes.indexOf(id);
+        if (index > -1) userUpvotes.splice(index, 1);
+      }
+      localStorage.setItem('userUpvotes', JSON.stringify(userUpvotes));
+      
       toast({
-        title: upvoted ? "Upvote removed" : "Issue upvoted",
-        description: upvoted ? "You removed your upvote" : "Thanks for supporting this issue!",
+        title: newUpvoteState ? "Issue upvoted!" : "Upvote removed",
+        description: newUpvoteState ? "Thanks for supporting this issue!" : "You removed your upvote",
       });
     } catch (error) {
       console.error('Error updating upvote:', error);
@@ -141,7 +212,8 @@ const IssueDetail = () => {
     }
   };
   
-  const handleCommentSubmit = (e: React.FormEvent) => {
+  // Handle comment submission
+  const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!currentUser) {
@@ -155,20 +227,60 @@ const IssueDetail = () => {
     
     if (!comment.trim()) return;
     
-    const newComment = {
-      id: `c${comments.length + 1}`,
-      user: { name: currentUser.displayName || "You", avatar: "" },
-      content: comment,
-      timestamp: "Just now"
-    };
+    setCommentSubmitting(true);
     
-    setComments([...comments, newComment]);
-    setComment('');
-    
-    toast({
-      title: "Comment Posted",
-      description: "Your comment has been added to the discussion.",
-    });
+    try {
+      const newComment = {
+        id: `c${Date.now()}`,
+        user: { 
+          name: currentUser.displayName || currentUser.email?.split('@')[0] || "Anonymous User", 
+          avatar: currentUser.photoURL || "" 
+        },
+        content: comment.trim(),
+        timestamp: "Just now",
+        created_at: new Date().toISOString()
+      };
+      
+      // Add comment to local state immediately for better UX
+      setComments(prev => [...prev, newComment]);
+      
+      // Update comment count in database
+      const newCommentCount = comments.length + 1;
+      await supabase
+        .from('issues')
+        .update({ comments_count: newCommentCount })
+        .eq('id', id);
+      
+      setComment('');
+      setCommentModalOpen(false);
+      
+      toast({
+        title: "Comment Posted",
+        description: "Your comment has been added to the discussion.",
+      });
+    } catch (error) {
+      console.error('Error posting comment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to post comment. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
+
+  // Open comment modal
+  const handleCommentClick = () => {
+    if (!currentUser) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to comment",
+        variant: "destructive",
+      });
+      return;
+    }
+    setCommentModalOpen(true);
   };
 
   if (loading) {
@@ -275,22 +387,30 @@ const IssueDetail = () => {
           {/* Upvote and Engagement Section */}
           <div className="bg-card border rounded-xl p-6 mb-8">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-4">
                 <button
                   onClick={handleUpvote}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                     upvoted 
-                      ? 'bg-primary text-primary-foreground' 
-                      : 'bg-secondary hover:bg-secondary/80'
+                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                   }`}
                 >
-                  <ThumbsUp className="h-4 w-4" />
+                  <ThumbsUp className={`h-4 w-4 ${upvoted ? 'fill-current' : ''}`} />
                   <span>{upvoteCount} upvotes</span>
                 </button>
                 
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <button
+                  onClick={handleCommentClick}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+                >
                   <MessageSquare className="h-4 w-4" />
-                  <span>{issue.comments_count || 0} comments</span>
+                  <span>{comments.length} comments</span>
+                </button>
+
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Eye className="h-4 w-4" />
+                  <span>{viewCount} views</span>
                 </div>
               </div>
               
@@ -361,6 +481,57 @@ const IssueDetail = () => {
           </div>
         </div>
       </div>
+
+      {/* Comment Modal */}
+      <Dialog open={commentModalOpen} onOpenChange={setCommentModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add a Comment</DialogTitle>
+          </DialogHeader>
+          
+          <form onSubmit={handleCommentSubmit} className="space-y-4">
+            <div>
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                className="w-full p-3 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                placeholder="Share your thoughts on this issue..."
+                rows={4}
+                required
+                disabled={commentSubmitting}
+              />
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setCommentModalOpen(false)}
+                disabled={commentSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={commentSubmitting || !comment.trim()}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {commentSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Posting...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Send className="h-4 w-4" />
+                    Post Comment
+                  </span>
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
