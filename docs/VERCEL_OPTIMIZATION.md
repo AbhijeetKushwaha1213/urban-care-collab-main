@@ -286,34 +286,20 @@ export const trackError = (error: Error, context?: string) => {
 
 ## 🔧 Vercel-Specific Features
 
-### 1. Edge Functions (Future)
+### 1. Static Site Optimization
 
-```typescript
-// api/edge-function.ts
-export const config = {
-  runtime: 'edge',
-};
+This project is configured as a static site with no serverless functions, optimized for:
+- Fast global CDN delivery
+- Automatic image optimization
+- Edge caching
+- Security headers
 
-export default function handler(request: Request) {
-  return new Response('Hello from the edge!');
-}
-```
+### 2. Future Enhancements
 
-### 2. Serverless Functions
-
-```typescript
-// api/validate-code.ts
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  const { code } = req.body;
-  
-  // Validate authority access code
-  const isValid = code === process.env.AUTHORITY_ACCESS_CODE;
-  
-  res.json({ isValid });
-}
-```
+If you need serverless functionality in the future, you can add:
+- Edge functions for dynamic content
+- API routes for backend logic
+- Middleware for request processing
 
 ### 3. Incremental Static Regeneration (ISR)
 

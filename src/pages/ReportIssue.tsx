@@ -190,6 +190,8 @@ export default function ReportIssuePage() {
             title: title,
             description: description,
             location: location,
+            latitude: coordinates?.lat || null,
+            longitude: coordinates?.lng || null,
             category: categoryMap[category] || "Other",
             image: null, // For now, we'll skip image upload to keep it simple
             created_by: currentUser.id,
@@ -387,11 +389,10 @@ export default function ReportIssuePage() {
             <label className="block mb-2 text-gray-300 font-medium flex items-center gap-2">
               <MapPin className="w-4 h-4" /> Location
             </label>
-            <Input
-              placeholder="Auto-detected or enter manually"
+            <LocationPicker
               value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="bg-gray-800 text-white border-gray-700"
+              onChange={handleLocationChange}
+              placeholder="Auto-detected or enter manually"
             />
           </div>
 

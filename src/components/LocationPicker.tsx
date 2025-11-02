@@ -11,7 +11,7 @@ interface LocationPickerProps {
   placeholder?: string;
 }
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyD7nJAmr4M4-qfzUQtubXAgWpc1P4ATh9E';
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeholder }) => {
   const [isMapOpen, setIsMapOpen] = useState(false);

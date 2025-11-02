@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
 import { analyzeMultipleImagesSimple } from '@/services/simpleVisionService';
+import LocationPicker from '@/components/LocationPicker';
 
 const UserHomepage = () => {
   const { currentUser } = useAuth();
@@ -29,12 +30,13 @@ const UserHomepage = () => {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
 
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<{ description: string; category: string } | null>(null);
-  const [mapModalOpen, setMapModalOpen] = useState(false);
+
 
   // Auto-fetch user location
   useEffect(() => {
@@ -225,6 +227,8 @@ const UserHomepage = () => {
             title: title,
             description: description,
             location: location,
+            latitude: coordinates?.lat || null,
+            longitude: coordinates?.lng || null,
             category: categoryMap[category] || "Other",
             image: null, // For now, we'll skip image upload to keep it simple
             created_by: currentUser.id,
@@ -256,6 +260,7 @@ const UserHomepage = () => {
         setDescription("");
         setCategory("");
         setLocation("");
+        setCoordinates(null);
         setAiSuggestion(null);
         clearAllPhotos();
       }, 2000);
@@ -667,24 +672,16 @@ const UserHomepage = () => {
               <label className="block mb-2 text-gray-700 font-medium flex items-center gap-2">
                 <MapPin className="w-4 h-4" /> Location
               </label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter location manually"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setMapModalOpen(true)}
-                  className="flex-shrink-0"
-                  title="Select on map"
-                >
-                  <MapPin className="h-4 w-4" />
-                </Button>
-              </div>
+              <LocationPicker
+                value={location}
+                onChange={(newLocation, coords) => {
+                  setLocation(newLocation);
+                  if (coords) {
+                    setCoordinates(coords);
+                  }
+                }}
+                placeholder="Enter location or use GPS/Map"
+              />
             </div>
 
 
@@ -729,62 +726,7 @@ const UserHomepage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Simple Map Modal */}
-      <Dialog open={mapModalOpen} onOpenChange={setMapModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Select Issue Location
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Click on the map to select the exact location of the issue.
-            </p>
-            
-            {/* Simple Map Placeholder */}
-            <div className="w-full h-96 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <MapPin className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <h3 className="text-lg font-semibold mb-2">Interactive Map</h3>
-                <p className="text-sm max-w-md">
-                  Map integration coming soon. For now, please enter the location manually in the text field.
-                </p>
-              </div>
-            </div>
-            
-            {/* Manual Location Input */}
-            <div>
-              <label className="block mb-2 text-sm font-medium text-gray-700">
-                Enter Location Manually
-              </label>
-              <Input
-                placeholder="Enter street address, landmark, or area name"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-              />
-            </div>
-            
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setMapModalOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => setMapModalOpen(false)}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                Confirm Location
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+
     </div>
   );
 };
