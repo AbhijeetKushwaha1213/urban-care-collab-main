@@ -80,57 +80,145 @@ const HomeRoute = () => {
   return <Index />;
 };
 
+// SafeRoute component with error boundary for individual routes
+const SafeRoute = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <ErrorBoundary>
+      {children}
+    </ErrorBoundary>
+  );
+};
+
 // AppRoutes component to handle routing after auth context is loaded
 const AppRoutes = () => {
+  const { loading } = useAuth();
+
+  // Add a timeout fallback for loading state
+  const [showFallback, setShowFallback] = React.useState(false);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading) {
+        setShowFallback(true);
+      }
+    }, 15000); // 15 second timeout
+
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  // If loading for too long, show fallback
+  if (loading && showFallback) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <LoadingSpinner />
+          <p className="mt-4 text-gray-600">Taking longer than expected...</p>
+          <button 
+            onClick={() => window.location.href = '/'}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Go to Home Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/home" element={<HomeRoute />} />
+        <Route path="/" element={<SafeRoute><Landing /></SafeRoute>} />
+        <Route path="/home" element={<SafeRoute><HomeRoute /></SafeRoute>} />
         <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <UserHomepage />
-          </ProtectedRoute>
+          <SafeRoute>
+            <ProtectedRoute>
+              <UserHomepage />
+            </ProtectedRoute>
+          </SafeRoute>
         } />
-        <Route path="/issues" element={<Issues />} />
-        <Route path="/issues/:id" element={<IssueDetail />} />
+        <Route path="/issues" element={<SafeRoute><Issues /></SafeRoute>} />
+        <Route path="/issues/:id" element={<SafeRoute><IssueDetail /></SafeRoute>} />
         <Route path="/issues/report" element={
-          <ProtectedRoute>
-            <ReportIssue />
-          </ProtectedRoute>
+          <SafeRoute>
+            <ProtectedRoute>
+              <ReportIssue />
+            </ProtectedRoute>
+          </SafeRoute>
         } />
         <Route path="/profile" element={
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
+          <SafeRoute>
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          </SafeRoute>
         } />
         <Route path="/onboarding" element={
-          <OnboardingRoute>
-            <UserOnboarding />
-          </OnboardingRoute>
+          <SafeRoute>
+            <OnboardingRoute>
+              <UserOnboarding />
+            </OnboardingRoute>
+          </SafeRoute>
         } />
-        <Route path="/events" element={<Events />} />
-        <Route path="/events/:id" element={<EventDetail />} />
-        <Route path="/authority-dashboard" element={<AuthorityDashboard />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="*" element={<NotFound />} />
+        <Route path="/events" element={<SafeRoute><Events /></SafeRoute>} />
+        <Route path="/events/:id" element={<SafeRoute><EventDetail /></SafeRoute>} />
+        <Route path="/authority-dashboard" element={<SafeRoute><AuthorityDashboard /></SafeRoute>} />
+        <Route path="/auth/callback" element={<SafeRoute><AuthCallback /></SafeRoute>} />
+        <Route path="*" element={<SafeRoute><NotFound /></SafeRoute>} />
       </Routes>
     </BrowserRouter>
   );
 };
 
-const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <Toaster />
-          <Sonner />
-          <AppRoutes />
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </ErrorBoundary>
-);
+const App = () => {
+  const [appError, setAppError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    // Log app initialization
+    console.log('Urban Care App initializing...');
+    console.log('Environment:', import.meta.env.MODE);
+    console.log('Supabase URL available:', !!import.meta.env.VITE_SUPABASE_URL);
+    
+    // Test if basic functionality works
+    try {
+      // Test if we can access localStorage
+      localStorage.setItem('test', 'test');
+      localStorage.removeItem('test');
+    } catch (error) {
+      console.error('localStorage not available:', error);
+      setAppError('Browser storage not available');
+    }
+  }, []);
+
+  if (appError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">App Error</h1>
+          <p className="text-gray-600 mb-4">{appError}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AuthProvider>
+            <Toaster />
+            <Sonner />
+            <AppRoutes />
+          </AuthProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+};
 
 export default App;
