@@ -7,7 +7,7 @@
  * Run with: node scripts/generate-access-code.js
  */
 
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 // Generate a secure random access code
 function generateSecureCode(prefix = 'URBAN_CARE', year = new Date().getFullYear()) {
@@ -65,7 +65,7 @@ function generateCodeOptions() {
 }
 
 // Command line interface
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);
   
   if (args.includes('--help') || args.includes('-h')) {
@@ -88,7 +88,7 @@ if (require.main === module) {
   }
 }
 
-module.exports = {
+export {
   generateSecureCode,
   generateCodeOptions
 };
