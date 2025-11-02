@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Search, Filter, Plus, MapPin, Calendar, MessageSquare, Users, SlidersHorizontal, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Filter, Plus, MapPin, SlidersHorizontal, Loader2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Button from '@/components/Button';
 import IssueCard from '@/components/IssueCard';
@@ -198,10 +198,10 @@ const Issues = () => {
   }, []);
 
   // Helper function to format date
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
-    const diffTime = Math.abs(now - date);
+    const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     if (diffDays === 1) return '1 day ago';
@@ -236,9 +236,9 @@ const Issues = () => {
       case 'Most Volunteers':
         return b.volunteersCount - a.volunteersCount;
       case 'Oldest':
-        return new Date(a.date) - new Date(b.date);
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
       default: // Newest
-        return new Date(b.date) - new Date(a.date);
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
     }
   });
   

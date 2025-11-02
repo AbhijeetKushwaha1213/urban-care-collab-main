@@ -1,18 +1,41 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
-import { User, Session, AuthError } from '@supabase/supabase-js'
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { User as SupabaseUser, Session, AuthError } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useToast } from "@/components/ui/use-toast"
+import { User, UserType } from '@/types'
+import { userService } from '@/services/supabaseService'
+import { validateAuthorityAccessCode, sanitizeAccessCode } from '@/utils/authValidation'
+import { getErrorMessage } from '@/lib/utils'
 
 interface AuthContextType {
-  currentUser: User | null
+  // User state
+  currentUser: SupabaseUser | null
+  userProfile: User | null
   session: Session | null
   loading: boolean
   isNewUser: boolean
-  hasUnauthorizedDomainError: boolean
-  signUp: (email: string, password: string, name: string, userType?: string, department?: string) => Promise<void>
+  
+  // Auth methods
+  signUp: (
+    email: string, 
+    password: string, 
+    name: string, 
+    userType?: UserType, 
+    department?: string,
+    authorityAccessCode?: string
+  ) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: (redirectTo?: string) => Promise<void>
   logOut: () => Promise<void>
+  
+  // Profile methods
+  updateProfile: (profileData: Partial<User>) => Promise<void>
+  refreshProfile: () => Promise<void>
+  
+  // Utility methods
+  isAuthority: () => boolean
+  isCitizen: () => boolean
+  hasPermission: (permission: string) => boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -26,19 +49,44 @@ export const useAuth = () => {
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null)
+  const [userProfile, setUserProfile] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [isNewUser, setIsNewUser] = useState(false)
-  const [hasUnauthorizedDomainError, setHasUnauthorizedDomainError] = useState(false)
   const { toast } = useToast()
+
+  // Load user profile
+  const loadUserProfile = useCallback(async (userId: string) => {
+    try {
+      const profile = await userService.getProfile(userId)
+      setUserProfile(profile)
+      
+      if (!profile) {
+        setIsNewUser(true)
+      } else if (!profile.is_onboarding_complete) {
+        setIsNewUser(true)
+      } else {
+        setIsNewUser(false)
+      }
+    } catch (error) {
+      console.error("Error loading user profile:", error)
+      setIsNewUser(true)
+      setUserProfile(null)
+    }
+  }, [])
 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setCurrentUser(session?.user ?? null)
-      setLoading(false)
+      
+      if (session?.user) {
+        loadUserProfile(session.user.id)
+      } else {
+        setLoading(false)
+      }
     })
 
     // Listen for auth changes
@@ -50,42 +98,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(session?.user ?? null)
       
       if (session?.user) {
-        // Check if this user has a profile
-        try {
-          const { data: profile, error } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
-          
-          if (error && error.code === 'PGRST116') {
-            // Table doesn't exist yet, mark as new user
-            setIsNewUser(true)
-          } else if (!profile) {
-            // User has no profile, mark as new user
-            setIsNewUser(true)
-          } else if (!profile.is_onboarding_complete) {
-            // User has profile but onboarding not complete
-            setIsNewUser(true)
-          } else {
-            // User has complete profile
-            setIsNewUser(false)
-          }
-        } catch (error) {
-          console.error("Error checking user profile:", error)
-          setIsNewUser(true)
-        }
+        await loadUserProfile(session.user.id)
+      } else {
+        setUserProfile(null)
+        setIsNewUser(false)
       }
       
       setLoading(false)
     })
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, [loadUserProfile])
 
-  const signUp = async (email: string, password: string, name: string, userType: string = 'citizen', department?: string) => {
+  const signUp = async (
+    email: string, 
+    password: string, 
+    name: string, 
+    userType: UserType = 'citizen', 
+    department?: string,
+    authorityAccessCode?: string
+  ) => {
     try {
-      console.log('Attempting to sign up:', email)
+      console.log('Attempting to sign up:', email, 'as', userType)
+      
+      // Validate authority access code if signing up as authority
+      if (userType === 'authority') {
+        if (!authorityAccessCode) {
+          throw new Error('Authority access code is required for authority accounts')
+        }
+        
+        const sanitizedCode = sanitizeAccessCode(authorityAccessCode)
+        const isValidCode = await validateAuthorityAccessCode(sanitizedCode)
+        
+        if (!isValidCode) {
+          throw new Error('Invalid authority access code')
+        }
+      }
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -102,22 +151,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsNewUser(true)
         
         // Create user profile in database
-        const { error: profileError } = await supabase
-          .from('user_profiles')
-          .insert([
-            {
-              id: data.user.id,
-              email: data.user.email,
-              full_name: name,
-              user_type: userType,
-              department: userType === 'authority' ? department : null,
-              created_at: new Date().toISOString(),
-              is_onboarding_complete: false,
-            }
-          ])
-        
-        if (profileError) {
+        try {
+          const profile = await userService.createProfile({
+            id: data.user.id,
+            email: data.user.email || email,
+            full_name: name,
+            user_type: userType,
+            department: userType === 'authority' ? department : undefined,
+            is_onboarding_complete: false,
+          })
+          
+          setUserProfile(profile)
+          console.log('User profile created successfully')
+        } catch (profileError) {
           console.error('Error creating user profile:', profileError)
+          // Don't throw here, as the auth user was created successfully
         }
         
         console.log('User signed up successfully')
@@ -129,21 +177,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error: any) {
       console.error("Sign up error:", error)
-      let errorMessage = "Sign up failed"
       
-      if (error.message?.includes('already registered')) {
-        errorMessage = "An account with this email already exists"
-      } else if (error.message?.includes('invalid email')) {
-        errorMessage = "Please enter a valid email address"
-      } else if (error.message?.includes('password')) {
-        errorMessage = "Password should be at least 6 characters"
-      } else {
-        errorMessage = error.message || "Sign up failed"
+      const errorMessage = getErrorMessage(error)
+      let userFriendlyMessage = errorMessage
+      
+      if (errorMessage.includes('already registered')) {
+        userFriendlyMessage = "An account with this email already exists"
+      } else if (errorMessage.includes('invalid email')) {
+        userFriendlyMessage = "Please enter a valid email address"
+      } else if (errorMessage.includes('password')) {
+        userFriendlyMessage = "Password should be at least 6 characters"
+      } else if (errorMessage.includes('Invalid authority access code')) {
+        userFriendlyMessage = "Invalid authority access code. Please contact your administrator."
+      } else if (errorMessage.includes('Authority access code is required')) {
+        userFriendlyMessage = "Authority access code is required for authority accounts"
       }
       
       toast({
         title: "Sign up failed",
-        description: errorMessage,
+        description: userFriendlyMessage,
         variant: "destructive",
       })
       throw error
@@ -253,16 +305,87 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  // Profile management methods
+  const updateProfile = async (profileData: Partial<User>) => {
+    if (!currentUser) {
+      throw new Error('No user logged in')
+    }
+    
+    try {
+      const updatedProfile = await userService.updateProfile(currentUser.id, profileData)
+      setUserProfile(updatedProfile)
+      
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been updated successfully.",
+      })
+    } catch (error) {
+      const errorMessage = getErrorMessage(error)
+      toast({
+        title: "Update failed",
+        description: errorMessage,
+        variant: "destructive",
+      })
+      throw error
+    }
+  }
+
+  const refreshProfile = async () => {
+    if (!currentUser) return
+    
+    try {
+      await loadUserProfile(currentUser.id)
+    } catch (error) {
+      console.error('Error refreshing profile:', error)
+    }
+  }
+
+  // Utility methods
+  const isAuthority = () => userProfile?.user_type === 'authority'
+  const isCitizen = () => userProfile?.user_type === 'citizen'
+  
+  const hasPermission = (permission: string) => {
+    if (!userProfile) return false
+    
+    // Basic permission system - can be expanded
+    switch (permission) {
+      case 'manage_issues':
+        return isAuthority()
+      case 'assign_issues':
+        return isAuthority()
+      case 'create_events':
+        return isAuthority()
+      case 'report_issues':
+        return true // All users can report issues
+      case 'comment_issues':
+        return true // All users can comment
+      default:
+        return false
+    }
+  }
+
   const value = {
+    // User state
     currentUser,
+    userProfile,
     session,
     loading,
     isNewUser,
-    hasUnauthorizedDomainError,
+    
+    // Auth methods
     signUp,
     signIn,
     signInWithGoogle,
-    logOut
+    logOut,
+    
+    // Profile methods
+    updateProfile,
+    refreshProfile,
+    
+    // Utility methods
+    isAuthority,
+    isCitizen,
+    hasPermission,
   }
 
   return (
