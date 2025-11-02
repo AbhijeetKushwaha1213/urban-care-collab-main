@@ -118,18 +118,20 @@ const Issues = () => {
       if (error) throw error;
 
       // Transform data to match the expected format
-      const transformedIssues = data.map(issue => ({
-        id: issue.id,
-        title: issue.title,
-        description: issue.description,
-        location: issue.location,
-        category: issue.category,
-        image: issue.image || "https://images.unsplash.com/photo-1604357209793-fca5dca89f97?q=80&w=800&auto=format&fit=crop", // Default image if none
-        date: formatDate(issue.created_at),
-        commentsCount: issue.comments_count || 0,
-        volunteersCount: issue.volunteers_count || 0,
-        status: issue.status
-      }));
+      const transformedIssues = data.map(issue => {
+        return {
+          id: issue.id,
+          title: issue.title,
+          description: issue.description,
+          location: issue.location,
+          category: issue.category,
+          image: issue.image || "https://images.unsplash.com/photo-1604357209793-fca5dca89f97?q=80&w=800&auto=format&fit=crop", // Default image if none
+          date: formatDate(issue.created_at),
+          commentsCount: issue.comments_count || 0,
+          volunteersCount: issue.volunteers_count || 0,
+          status: issue.status
+        };
+      });
 
       setIssues(transformedIssues);
     } catch (error) {

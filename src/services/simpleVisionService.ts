@@ -1,5 +1,5 @@
 // Simplified Vision API service for description generation
-const GOOGLE_VISION_API_KEY = 'AIzaSyD7nJAmr4M4-qfzUQtubXAgWpc1P4ATh9E';
+const GOOGLE_VISION_API_KEY = import.meta.env.VITE_GOOGLE_VISION_API_KEY;
 
 // Convert file to base64
 const fileToBase64 = (file: File): Promise<string> => {

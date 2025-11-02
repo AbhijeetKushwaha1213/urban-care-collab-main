@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MapPin, Navigation, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 
 interface LocationPickerProps {
@@ -24,8 +24,17 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
 
   // Get current location
   const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast({
+        title: "Geolocation Not Supported",
+        description: "Your browser doesn't support location detection. Please enter manually or use the map.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
-    navigator.geolocation?.getCurrentPosition(
+    navigator.geolocation.getCurrentPosition(
       (position) => {
         const coords = {
           lat: position.coords.latitude,
@@ -33,37 +42,83 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
         };
         reverseGeocode(coords);
         setIsLoading(false);
+        toast({
+          title: "Location Detected",
+          description: "Your current location has been detected successfully!",
+        });
       },
       (error) => {
         console.error('Geolocation error:', error);
+        let errorMessage = "Unable to detect your location. Please enter manually or use the map.";
+        
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = "Location access denied. Please enable location permissions in your browser settings and try again.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = "Location information unavailable. Please check your internet connection and try again.";
+            break;
+          case error.TIMEOUT:
+            errorMessage = "Location request timed out. Please try again or enter location manually.";
+            break;
+        }
+        
         toast({
           title: "Location Error",
-          description: "Unable to detect your location. Please enter manually or use the map.",
+          description: errorMessage,
           variant: "destructive",
         });
         setIsLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { 
+        enableHighAccuracy: true, 
+        timeout: 15000, // Increased timeout
+        maximumAge: 300000 // Cache location for 5 minutes
+      }
     );
   };
 
   // Reverse geocode coordinates to address
   const reverseGeocode = async (coords: { lat: number; lng: number }) => {
     try {
+      if (!GOOGLE_MAPS_API_KEY) {
+        console.error('Google Maps API key not configured');
+        onChange(`${coords.lat}, ${coords.lng}`, coords);
+        return;
+      }
+
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coords.lat},${coords.lng}&key=${GOOGLE_MAPS_API_KEY}`
       );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
       
-      if (data.results && data.results.length > 0) {
+      if (data.status === 'OK' && data.results && data.results.length > 0) {
         const address = data.results[0].formatted_address;
         onChange(address, coords);
       } else {
+        console.warn('Geocoding API response:', data);
         onChange(`${coords.lat}, ${coords.lng}`, coords);
+        if (data.status !== 'ZERO_RESULTS') {
+          toast({
+            title: "Address Lookup Failed",
+            description: "Could not get address for your location. Coordinates will be used instead.",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       console.error('Reverse geocoding failed:', error);
       onChange(`${coords.lat}, ${coords.lng}`, coords);
+      toast({
+        title: "Address Lookup Error",
+        description: "Failed to get address. Your coordinates will be used instead.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -231,6 +286,9 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
               <MapPin className="h-5 w-5" />
               Select Issue Location
             </DialogTitle>
+            <DialogDescription>
+              Click on the map to pinpoint the exact location of the issue.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">

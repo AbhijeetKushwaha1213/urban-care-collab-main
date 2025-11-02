@@ -129,6 +129,30 @@ export default function ReportIssuePage() {
     setCoordinates(coords || null);
   };
 
+  // Convert images to base64 for database storage (temporary solution)
+  const convertImagesToBase64 = async (files: File[]): Promise<string[]> => {
+    const base64Images: string[] = [];
+    
+    for (let i = 0; i < files.length && i < 1; i++) { // Only take first image for now
+      const file = files[i];
+      
+      try {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        
+        base64Images.push(base64);
+      } catch (error) {
+        console.error('Error converting image to base64:', error);
+      }
+    }
+
+    return base64Images;
+  };
+
   // Handle real submit
   const handleSubmit = async () => {
     if (!currentUser) {
@@ -182,25 +206,37 @@ export default function ReportIssuePage() {
         others: "Other"
       };
 
+      // Convert images if any
+      let imageUrls: string[] = [];
+      if (photoFiles.length > 0) {
+        toast({
+          title: "Processing images...",
+          description: "Please wait while we process your photos.",
+        });
+        imageUrls = await convertImagesToBase64(photoFiles);
+      }
+
+      // Prepare issue data
+      const issueData = {
+        title: title,
+        description: description,
+        location: location,
+        category: categoryMap[category] || "Other",
+        image: imageUrls.length > 0 ? imageUrls[0] : null, // Primary image (first uploaded image)
+        created_by: currentUser.id,
+        status: 'reported',
+        comments_count: 0,
+        volunteers_count: 0,
+        created_at: new Date().toISOString(),
+      };
+
+      console.log('Submitting issue data:', issueData);
+
       // Submit issue to database
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('issues')
-        .insert([
-          {
-            title: title,
-            description: description,
-            location: location,
-            latitude: coordinates?.lat || null,
-            longitude: coordinates?.lng || null,
-            category: categoryMap[category] || "Other",
-            image: null, // For now, we'll skip image upload to keep it simple
-            created_by: currentUser.id,
-            status: 'reported',
-            comments_count: 0,
-            volunteers_count: 0,
-            created_at: new Date().toISOString(),
-          }
-        ]);
+        .insert([issueData])
+        .select();
 
       if (error) throw error;
 
@@ -225,9 +261,16 @@ export default function ReportIssuePage() {
 
     } catch (error) {
       console.error("Error submitting issue:", error);
+      
+      let errorMessage = "An error occurred while submitting your report. Please try again.";
+      
+      if (error?.message) {
+        errorMessage = `Submission failed: ${error.message}`;
+      }
+      
       toast({
         title: "Failed to submit report",
-        description: "An error occurred while submitting your report. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -358,14 +401,74 @@ export default function ReportIssuePage() {
 
           {/* Description */}
           <div className="mb-6">
-            <label className="block mb-2 text-gray-300 font-medium">Description</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-gray-300 font-medium">Description</label>
+              {photos.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => analyzePhotosWithAI(photoFiles)}
+                  disabled={isAnalyzing}
+                  className="text-blue-400 hover:text-blue-300 border-gray-600 hover:border-blue-400"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-1" />
+                      Generate Description
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
             <Textarea
-              placeholder="Describe the issue briefly..."
+              placeholder="Describe the issue briefly or use AI to generate from photos"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="bg-gray-800 text-white border-gray-700 focus:ring-2 focus:ring-indigo-500"
             />
           </div>
+
+          {/* AI Suggestions */}
+          {aiSuggestion && (
+            <div className="mb-6">
+              <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 border border-blue-600/50 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="h-5 w-5 text-blue-400" />
+                  <span className="font-medium text-blue-300">AI Smart Suggestions</span>
+                  {isAnalyzing && (
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                  )}
+                </div>
+                {aiSuggestion && (
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-sm font-medium text-gray-300">Suggested Description:</span>
+                      <p className="text-sm text-gray-400 bg-gray-800/50 p-2 rounded border border-gray-600">{aiSuggestion.description}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-300">Suggested Category:</span>
+                      <p className="text-sm text-gray-400 bg-gray-800/50 p-2 rounded border border-gray-600">{aiSuggestion.category}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={applyAISuggestions}
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Wand2 className="h-4 w-4 mr-1" />
+                      Apply Suggestions
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Category */}
           <div className="mb-6">

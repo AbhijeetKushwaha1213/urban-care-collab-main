@@ -166,6 +166,30 @@ const UserHomepage = () => {
     setAiSuggestion(null);
   };
 
+  // Convert images to base64 for database storage (temporary solution)
+  const convertImagesToBase64 = async (files: File[]): Promise<string[]> => {
+    const base64Images: string[] = [];
+    
+    for (let i = 0; i < files.length && i < 1; i++) { // Only take first image for now
+      const file = files[i];
+      
+      try {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        
+        base64Images.push(base64);
+      } catch (error) {
+        console.error('Error converting image to base64:', error);
+      }
+    }
+
+    return base64Images;
+  };
+
   // Handle report submission
   const handleSubmit = async () => {
     if (!currentUser) {
@@ -219,6 +243,16 @@ const UserHomepage = () => {
         others: "Other"
       };
 
+      // Convert images if any
+      let imageUrls: string[] = [];
+      if (photoFiles.length > 0) {
+        toast({
+          title: "Processing images...",
+          description: "Please wait while we process your photos.",
+        });
+        imageUrls = await convertImagesToBase64(photoFiles);
+      }
+
       // Submit issue to database
       const { data, error } = await supabase
         .from('issues')
@@ -227,10 +261,8 @@ const UserHomepage = () => {
             title: title,
             description: description,
             location: location,
-            latitude: coordinates?.lat || null,
-            longitude: coordinates?.lng || null,
             category: categoryMap[category] || "Other",
-            image: null, // For now, we'll skip image upload to keep it simple
+            image: imageUrls.length > 0 ? imageUrls[0] : null, // Primary image (first uploaded image)
             created_by: currentUser.id,
             status: 'reported',
             comments_count: 0,
