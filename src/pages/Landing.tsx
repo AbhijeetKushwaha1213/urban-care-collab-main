@@ -193,12 +193,21 @@ export default function Landing() {
               <p className="text-white/90 text-sm mb-6">
                 Field workers and municipal staff. Complete assigned tasks, upload proof of work, and manage ground-level operations.
               </p>
-              <Button 
-                onClick={handleWorkerAccess}
-                className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-full w-full"
-              >
-                Access as Worker
-              </Button>
+              <div className="space-y-3">
+                <Button 
+                  onClick={handleWorkerAccess}
+                  className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-full w-full"
+                >
+                  Access as Worker
+                </Button>
+                <Button 
+                  onClick={() => navigate('/worker/test')}
+                  variant="outline"
+                  className="text-green-600 border-green-600 hover:bg-green-50 px-6 py-2 rounded-full w-full text-sm"
+                >
+                  Test Worker Page (Direct)
+                </Button>
+              </div>
             </motion.div>
           </div>
         </section>
@@ -245,7 +254,7 @@ export default function Landing() {
       <AuthModal 
         isOpen={authModalOpen} 
         onClose={handleAuthClose}
-        redirectTo={selectedUserType === 'citizen' ? '/issues' : '/dashboard'}
+        onSuccess={handleAuthSuccess}
         userType={selectedUserType || 'citizen'}
       />
       </div>

@@ -10,11 +10,12 @@ import { validateAuthorityAccessCode, sanitizeAccessCode } from "@/utils/authVal
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
   redirectTo?: string;
   userType?: 'citizen' | 'authority' | 'worker';
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo, userType = 'citizen' }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, redirectTo, userType = 'citizen' }) => {
   const navigate = useNavigate();
   const [isSignIn, setIsSignIn] = useState(true);
   const [email, setEmail] = useState('');
@@ -59,8 +60,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo, user
           description: "Welcome back!",
         });
         onClose();
-        // Always navigate to dashboard for signin, let SmartDashboard route based on user type
-        navigate('/dashboard');
+        // Call success callback if provided, otherwise use default navigation
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         // Sign up logic - validate authority access code if needed
         if (userType === 'authority') {
@@ -100,10 +105,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo, user
               : "Your account has been created successfully",
         });
         onClose();
-        // For workers and authorities, let SmartDashboard handle routing after profile loads
-        if (userType === 'citizen' && redirectTo) {
+        // Call success callback if provided, otherwise use default navigation
+        if (onSuccess) {
+          onSuccess();
+        } else if (userType === 'citizen' && redirectTo) {
           navigate(redirectTo);
-        } else if ((userType === 'worker' || userType === 'authority')) {
+        } else {
           navigate('/dashboard');
         }
       }

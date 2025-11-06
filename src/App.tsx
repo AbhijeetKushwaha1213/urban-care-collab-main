@@ -26,6 +26,7 @@ import WorkerDashboard from "./pages/WorkerDashboard";
 import WorkerTaskDetail from "./pages/WorkerTaskDetail";
 import WorkerTaskComplete from "./pages/WorkerTaskComplete";
 import SmartDashboard from "./components/SmartDashboard";
+import SimpleWorkerTest from "./pages/SimpleWorkerTest";
 
 // Import debug functions for browser console
 import './debug/fix-user-profiles';
@@ -183,7 +184,8 @@ const AppRoutes = () => {
         <Route path="/auth/callback" element={<SafeRoute><AuthCallback /></SafeRoute>} />
         
         {/* Worker Routes */}
-        <Route path="/worker/dashboard" element={<SafeRoute><ProtectedRoute><WorkerDashboard /></ProtectedRoute></SafeRoute>} />
+        <Route path="/worker/dashboard" element={<SafeRoute><SimpleWorkerTest /></SafeRoute>} />
+        <Route path="/worker/test" element={<SimpleWorkerTest />} />
         <Route path="/worker/task/:taskId" element={<SafeRoute><ProtectedRoute><WorkerTaskDetail /></ProtectedRoute></SafeRoute>} />
         <Route path="/worker/task/:taskId/complete" element={<SafeRoute><ProtectedRoute><WorkerTaskComplete /></ProtectedRoute></SafeRoute>} />
         
