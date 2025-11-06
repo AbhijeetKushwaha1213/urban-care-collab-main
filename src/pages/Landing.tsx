@@ -206,8 +206,18 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="py-6 text-center text-gray-400 bg-gray-950 border-t border-gray-800">
-        © 2025 Nagar Setu | Empowering Citizens for Smarter Cities
+      <footer className="py-8 text-center text-gray-400 bg-gray-950 border-t border-gray-800">
+        <div className="mb-4">
+          <Button
+            onClick={() => navigate('/worker/login')}
+            variant="outline"
+            className="text-blue-400 border-blue-400 hover:bg-blue-400 hover:text-white mr-4"
+          >
+            Worker Login
+          </Button>
+          <span className="text-gray-500 text-sm">Field Worker Portal</span>
+        </div>
+        <p>© 2025 Nagar Setu | Empowering Citizens for Smarter Cities</p>
       </footer>
 
       {/* Auth Modal */}
