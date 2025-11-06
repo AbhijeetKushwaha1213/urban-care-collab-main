@@ -17,14 +17,18 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { WorkerTask } from '@/types';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 
 const WorkerTaskDetail: React.FC = () => {
   const { taskId } = useParams();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [task, setTask] = useState<WorkerTask | null>(null);
   const [loading, setLoading] = useState(true);
   const [workerNote, setWorkerNote] = useState('');
   const [showNoteDialog, setShowNoteDialog] = useState(false);
+  const [addingNote, setAddingNote] = useState(false);
 
   useEffect(() => {
     loadTaskDetails();
@@ -32,33 +36,104 @@ const WorkerTaskDetail: React.FC = () => {
 
   const loadTaskDetails = async () => {
     try {
-      // Mock task data - in real app, fetch from API
-      const mockTask: WorkerTask = {
-        id: taskId || '1',
-        issue_id: 'P-1045',
-        worker_id: 'worker-123',
-        title: 'Pothole Repair',
-        description: 'This pothole is huge! It almost damaged my car. It\'s right in front of the blue bank building. The hole is approximately 2 feet wide and 6 inches deep. Multiple vehicles have been affected.',
-        location: '123 Main St, Sector 5, Near City Bank',
-        category: 'Infrastructure',
-        priority: 'critical',
-        status: 'pending',
-        assigned_at: new Date().toISOString(),
-        coordinates: { lat: 40.7128, lng: -74.0060 },
-        before_image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=600&h=400&fit=crop'
+      if (!currentUser || !taskId) {
+        throw new Error('User not authenticated or task ID missing');
+      }
+
+      // Fetch real task data from database
+      const { data: issue, error } = await supabase
+        .from('issues')
+        .select(`
+          *,
+          user_profiles!issues_created_by_fkey(full_name, avatar_url)
+        `)
+        .eq('id', taskId)
+        .eq('assigned_to', currentUser.id)
+        .single();
+
+      if (error) throw error;
+
+      if (!issue) {
+        throw new Error('Task not found or not assigned to you');
+      }
+
+      // Transform to WorkerTask format
+      const transformedTask: WorkerTask = {
+        id: issue.id,
+        issue_id: `ISS-${issue.id.slice(-4).toUpperCase()}`,
+        worker_id: currentUser.id,
+        title: issue.title,
+        description: issue.description,
+        location: issue.location,
+        category: issue.category,
+        priority: issue.priority || 'medium',
+        status: issue.status,
+        assigned_at: issue.assigned_at || issue.created_at,
+        scheduled_date: issue.scheduled_date || calculateScheduledDate(issue.priority, issue.created_at),
+        estimated_duration: getEstimatedDuration(issue.category),
+        coordinates: parseCoordinates(issue.location),
+        before_image: issue.image,
+        after_image: issue.after_image,
+        completed_at: issue.status === 'resolved' ? issue.updated_at : null,
+        created_by_name: issue.user_profiles?.full_name || 'Anonymous Citizen'
       };
 
-      setTask(mockTask);
+      setTask(transformedTask);
     } catch (error) {
       console.error('Error loading task:', error);
       toast({
         title: "Error",
-        description: "Failed to load task details",
+        description: "Failed to load task details. Please try again.",
         variant: "destructive",
       });
+      navigate('/worker/dashboard');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper functions
+  const calculateScheduledDate = (priority: string, createdAt: string) => {
+    const created = new Date(createdAt);
+    let hoursToAdd = 24;
+
+    switch (priority) {
+      case 'critical': hoursToAdd = 2; break;
+      case 'high': hoursToAdd = 8; break;
+      case 'medium': hoursToAdd = 24; break;
+      case 'low': hoursToAdd = 72; break;
+    }
+
+    return new Date(created.getTime() + hoursToAdd * 60 * 60 * 1000).toISOString();
+  };
+
+  const getEstimatedDuration = (category: string) => {
+    const durations = {
+      'Infrastructure': 120,
+      'Electricity': 90,
+      'Water': 60,
+      'Trash': 45,
+      'Drainage': 90,
+      'Other': 60
+    };
+    return durations[category] || 60;
+  };
+
+  const parseCoordinates = (location: string) => {
+    const coordRegex = /(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/;
+    const match = location.match(coordRegex);
+    
+    if (match) {
+      return {
+        lat: parseFloat(match[1]),
+        lng: parseFloat(match[2])
+      };
+    }
+    
+    return {
+      lat: 28.6139 + (Math.random() - 0.5) * 0.1,
+      lng: 77.2090 + (Math.random() - 0.5) * 0.1
+    };
   };
 
   const handleGetDirections = () => {
@@ -105,7 +180,7 @@ const WorkerTaskDetail: React.FC = () => {
     });
   };
 
-  const handleAddNote = () => {
+  const handleAddNote = async () => {
     if (!workerNote.trim()) {
       toast({
         title: "Note Required",
@@ -115,14 +190,39 @@ const WorkerTaskDetail: React.FC = () => {
       return;
     }
 
-    // In real app, save note to database
-    toast({
-      title: "Note Added",
-      description: "Your note has been saved successfully",
-    });
+    setAddingNote(true);
+    try {
+      // Save note to database
+      const { error } = await supabase
+        .from('issues')
+        .update({
+          worker_notes: workerNote,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', taskId);
 
-    setWorkerNote('');
-    setShowNoteDialog(false);
+      if (error) throw error;
+
+      toast({
+        title: "Note Added",
+        description: "Your note has been saved successfully",
+      });
+
+      setWorkerNote('');
+      setShowNoteDialog(false);
+      
+      // Reload task to show updated note
+      loadTaskDetails();
+    } catch (error) {
+      console.error('Error saving note:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save note. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setAddingNote(false);
+    }
   };
 
   const handleMarkCompleted = () => {
@@ -245,16 +345,40 @@ const WorkerTaskDetail: React.FC = () => {
               <p className="text-sm font-medium text-gray-700 mb-2">Citizen's Report:</p>
               <div className="bg-gray-50 p-3 rounded-lg">
                 <p className="text-gray-900 italic">"{task.description}"</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Reported by: {task.created_by_name || 'Anonymous Citizen'}
+                </p>
               </div>
             </div>
 
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Assigned:</p>
-              <div className="flex items-center text-sm text-gray-600">
-                <Clock className="h-4 w-4 mr-1" />
-                {formatTime(task.assigned_at)}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Assigned:</p>
+                <div className="flex items-center text-sm text-gray-600">
+                  <Clock className="h-4 w-4 mr-1" />
+                  {formatTime(task.assigned_at)}
+                </div>
               </div>
+              
+              {task.scheduled_date && (
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">Due Date:</p>
+                  <div className="flex items-center text-sm text-gray-600">
+                    <Clock className="h-4 w-4 mr-1" />
+                    {formatTime(task.scheduled_date)}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {task.estimated_duration && (
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Estimated Duration:</p>
+                <p className="text-sm text-gray-600">
+                  {Math.floor(task.estimated_duration / 60)}h {task.estimated_duration % 60}m
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -326,9 +450,17 @@ const WorkerTaskDetail: React.FC = () => {
               </Button>
               <Button
                 onClick={handleAddNote}
+                disabled={addingNote}
                 className="flex-1 bg-blue-600 hover:bg-blue-700"
               >
-                Save Note
+                {addingNote ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Note'
+                )}
               </Button>
             </div>
           </div>

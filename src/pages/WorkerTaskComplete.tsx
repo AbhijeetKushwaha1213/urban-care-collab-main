@@ -13,16 +13,20 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { WorkerTask } from '@/types';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 
 const WorkerTaskComplete: React.FC = () => {
   const { taskId } = useParams();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [task, setTask] = useState<WorkerTask | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [afterPhoto, setAfterPhoto] = useState<string | null>(null);
   const [afterPhotoFile, setAfterPhotoFile] = useState<File | null>(null);
   const [finalNote, setFinalNote] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     loadTaskDetails();
@@ -30,35 +34,83 @@ const WorkerTaskComplete: React.FC = () => {
 
   const loadTaskDetails = async () => {
     try {
-      // Mock task data - in real app, fetch from API
-      const mockTask: WorkerTask = {
-        id: taskId || '1',
-        issue_id: 'P-1045',
-        worker_id: 'worker-123',
-        title: 'Pothole Repair',
-        description: 'Large pothole causing vehicle damage near City Bank',
-        location: '123 Main St, Sector 5, Near City Bank',
-        category: 'Infrastructure',
-        priority: 'critical',
-        status: 'pending',
-        assigned_at: new Date().toISOString(),
-        coordinates: { lat: 40.7128, lng: -74.0060 }
+      if (!currentUser || !taskId) {
+        throw new Error('User not authenticated or task ID missing');
+      }
+
+      // Fetch real task data from database
+      const { data: issue, error } = await supabase
+        .from('issues')
+        .select(`
+          *,
+          user_profiles!issues_created_by_fkey(full_name, avatar_url)
+        `)
+        .eq('id', taskId)
+        .eq('assigned_to', currentUser.id)
+        .single();
+
+      if (error) throw error;
+
+      if (!issue) {
+        throw new Error('Task not found or not assigned to you');
+      }
+
+      // Transform to WorkerTask format
+      const transformedTask: WorkerTask = {
+        id: issue.id,
+        issue_id: `ISS-${issue.id.slice(-4).toUpperCase()}`,
+        worker_id: currentUser.id,
+        title: issue.title,
+        description: issue.description,
+        location: issue.location,
+        category: issue.category,
+        priority: issue.priority || 'medium',
+        status: issue.status,
+        assigned_at: issue.assigned_at || issue.created_at,
+        coordinates: parseCoordinates(issue.location),
+        before_image: issue.image,
+        after_image: issue.after_image,
+        created_by_name: issue.user_profiles?.full_name || 'Anonymous Citizen'
       };
 
-      setTask(mockTask);
+      setTask(transformedTask);
+      
+      // Pre-fill final note if worker notes exist
+      if (issue.worker_notes) {
+        setFinalNote(issue.worker_notes);
+      }
     } catch (error) {
       console.error('Error loading task:', error);
       toast({
         title: "Error",
-        description: "Failed to load task details",
+        description: "Failed to load task details. Please try again.",
         variant: "destructive",
       });
+      navigate('/worker/dashboard');
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Helper function to parse coordinates
+  const parseCoordinates = (location: string) => {
+    const coordRegex = /(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/;
+    const match = location.match(coordRegex);
+    
+    if (match) {
+      return {
+        lat: parseFloat(match[1]),
+        lng: parseFloat(match[2])
+      };
+    }
+    
+    return {
+      lat: 28.6139 + (Math.random() - 0.5) * 0.1,
+      lng: 77.2090 + (Math.random() - 0.5) * 0.1
+    };
+  };
+
+  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -82,19 +134,41 @@ const WorkerTaskComplete: React.FC = () => {
       return;
     }
 
-    setAfterPhotoFile(file);
+    setUploadingPhoto(true);
+    try {
+      // Upload to Supabase storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `after-${taskId}-${Date.now()}.${fileExt}`;
+      const filePath = `task-completions/${fileName}`;
 
-    // Create preview URL
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setAfterPhoto(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+      const { error: uploadError } = await supabase.storage
+        .from('user-uploads')
+        .upload(filePath, file);
 
-    toast({
-      title: "Photo Captured",
-      description: "After photo has been captured successfully",
-    });
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('user-uploads')
+        .getPublicUrl(filePath);
+
+      setAfterPhoto(publicUrl);
+      setAfterPhotoFile(file);
+
+      toast({
+        title: "Photo Uploaded",
+        description: "After photo has been uploaded successfully",
+      });
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload photo. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const removePhoto = () => {
@@ -118,25 +192,35 @@ const WorkerTaskComplete: React.FC = () => {
       return;
     }
 
+    if (!currentUser || !taskId) {
+      toast({
+        title: "Error",
+        description: "User not authenticated or task ID missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
-      // In real app, upload photo and update task status
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+      // Update issue status and add completion data
+      const { error } = await supabase
+        .from('issues')
+        .update({
+          status: 'resolved',
+          after_image: afterPhoto,
+          worker_notes: finalNote,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', taskId)
+        .eq('assigned_to', currentUser.id);
 
-      // Mock API call to complete task
-      const completionData = {
-        task_id: taskId,
-        after_photo: afterPhoto,
-        worker_notes: finalNote,
-        completed_at: new Date().toISOString(),
-        status: 'completed_by_worker'
-      };
-
-      console.log('Submitting completion:', completionData);
+      if (error) throw error;
 
       toast({
         title: "Task Completed! 🎉",
-        description: "Your work has been submitted for review",
+        description: "Your work has been submitted for authority review",
       });
 
       // Navigate back to dashboard
@@ -212,6 +296,26 @@ const WorkerTaskComplete: React.FC = () => {
           </p>
         </div>
 
+        {/* Before Photo Reference */}
+        {task?.before_image && (
+          <div className="bg-white rounded-lg p-4 shadow-sm border">
+            <h2 className="text-lg font-semibold mb-3 flex items-center">
+              <Camera className="h-5 w-5 mr-2 text-blue-600" />
+              'Before' Photo (Reference)
+            </h2>
+            <div className="space-y-2">
+              <img
+                src={task.before_image}
+                alt="Before - Issue reported by citizen"
+                className="w-full rounded-lg border shadow-sm"
+              />
+              <p className="text-xs text-gray-500 text-center">
+                Original photo submitted by citizen - Use this as reference for your 'After' photo
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Photo Upload Section */}
         <div className="bg-white rounded-lg p-4 shadow-sm border">
           <h2 className="text-lg font-semibold mb-4 flex items-center">
@@ -219,7 +323,19 @@ const WorkerTaskComplete: React.FC = () => {
             Upload 'After' Photo
           </h2>
 
-          {!afterPhoto ? (
+          {uploadingPhoto ? (
+            <div className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-lg font-semibold text-blue-800 mb-2">
+                  Uploading Photo...
+                </p>
+                <p className="text-sm text-blue-600">
+                  Please wait while we upload your image
+                </p>
+              </div>
+            </div>
+          ) : !afterPhoto ? (
             <div className="space-y-4">
               {/* Camera Button */}
               <label
@@ -284,10 +400,49 @@ const WorkerTaskComplete: React.FC = () => {
           )}
         </div>
 
+        {/* Before/After Comparison */}
+        {task?.before_image && afterPhoto && (
+          <div className="bg-white rounded-lg p-4 shadow-sm border">
+            <h2 className="text-lg font-semibold mb-4 flex items-center">
+              <CheckCircle className="h-5 w-5 mr-2 text-green-600" />
+              Before vs After Comparison
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">BEFORE (Citizen Report)</h3>
+                <img
+                  src={task.before_image}
+                  alt="Before - Issue reported"
+                  className="w-full rounded-lg border shadow-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1 text-center">Original issue</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">AFTER (Your Work)</h3>
+                <img
+                  src={afterPhoto}
+                  alt="After - Work completed"
+                  className="w-full rounded-lg border shadow-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1 text-center">Completed work</p>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center">
+                <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                <span className="text-green-800 font-medium">Ready for authority review!</span>
+              </div>
+              <p className="text-green-700 text-sm mt-1">
+                The authority will see this comparison to verify your work completion.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Optional Note Section */}
         <div className="bg-white rounded-lg p-4 shadow-sm border">
           <h2 className="text-lg font-semibold mb-3">
-            Add Note (Optional)
+            Add Completion Note (Optional)
           </h2>
           <Textarea
             placeholder="Add a final note about the completed work... (e.g., 'Fixed. Used 2 bags of asphalt. Road is now clear.')"
@@ -297,7 +452,7 @@ const WorkerTaskComplete: React.FC = () => {
             className="mb-2"
           />
           <p className="text-xs text-gray-500">
-            Optional: Add any details about materials used, time taken, or special notes
+            Optional: Add any details about materials used, time taken, or special notes for the authority
           </p>
         </div>
 
