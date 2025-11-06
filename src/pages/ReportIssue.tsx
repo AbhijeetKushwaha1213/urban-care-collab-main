@@ -12,7 +12,9 @@ import { useAuth } from "@/contexts/SupabaseAuthContext";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import { analyzeMultipleImages, combineImageAnalyses } from "@/services/visionService";
+import { checkForDuplicates, DuplicateDetectionResult } from "@/services/duplicateDetectionService";
 import LocationPicker from "@/components/LocationPicker";
+import DuplicateIssueModal from "@/components/DuplicateIssueModal";
 
 export default function ReportIssuePage() {
   const { currentUser } = useAuth();
@@ -27,6 +29,9 @@ export default function ReportIssuePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<{ description: string; category: string } | null>(null);
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
+  const [duplicateResult, setDuplicateResult] = useState<DuplicateDetectionResult | null>(null);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
 
   // Auto-fetch user location
   useEffect(() => {
@@ -153,7 +158,7 @@ export default function ReportIssuePage() {
     return base64Images;
   };
 
-  // Handle real submit
+  // Handle duplicate check and submission
   const handleSubmit = async () => {
     if (!currentUser) {
       toast({
@@ -192,6 +197,69 @@ export default function ReportIssuePage() {
       return;
     }
 
+    // Step 1: Check for duplicates
+    setIsCheckingDuplicates(true);
+    try {
+      toast({
+        title: "Checking for duplicates...",
+        description: "Analyzing your issue for potential duplicates.",
+      });
+
+      // Convert images for duplicate checking
+      let imageBase64: string | undefined;
+      if (photoFiles.length > 0) {
+        const imageUrls = await convertImagesToBase64(photoFiles);
+        imageBase64 = imageUrls[0];
+      }
+
+      // Map category for duplicate checking
+      const categoryMap = {
+        pothole: "Infrastructure",
+        streetlight: "Electricity", 
+        waste: "Trash",
+        water: "Water",
+        others: "Other"
+      };
+
+      const mappedCategory = categoryMap[category] || "Other";
+
+      // Check for duplicates
+      const duplicateCheck = await checkForDuplicates(
+        description,
+        location,
+        coordinates,
+        imageBase64,
+        mappedCategory
+      );
+
+      setDuplicateResult(duplicateCheck);
+
+      if (duplicateCheck.isDuplicate && duplicateCheck.confidence > 0.6) {
+        // Show duplicate modal
+        setShowDuplicateModal(true);
+        setIsCheckingDuplicates(false);
+        return;
+      }
+
+      // No duplicates found, proceed with submission
+      await submitIssue();
+
+    } catch (error) {
+      console.error('Error checking for duplicates:', error);
+      toast({
+        title: "Duplicate check failed",
+        description: "Proceeding with submission anyway.",
+        variant: "destructive",
+      });
+      // Proceed with submission even if duplicate check fails
+      await submitIssue();
+    } finally {
+      setIsCheckingDuplicates(false);
+    }
+  };
+
+  // Actual submission function
+  const submitIssue = async () => {
     setIsSubmitting(true);
     try {
       // Create a title from description (first 50 characters)
@@ -276,6 +344,21 @@ export default function ReportIssuePage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Handle duplicate modal actions
+  const handleProceedAnyway = async () => {
+    setShowDuplicateModal(false);
+    await submitIssue();
+  };
+
+  const handleCancelSubmission = () => {
+    setShowDuplicateModal(false);
+    setDuplicateResult(null);
+    toast({
+      title: "Submission cancelled",
+      description: "Your issue was not submitted. You can review the similar issues or modify your report.",
+    });
   };
 
   return (
@@ -505,10 +588,15 @@ export default function ReportIssuePage() {
           <div className="text-center">
             <Button
               onClick={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isCheckingDuplicates}
               className="bg-pink-600 hover:bg-pink-700 text-white px-8 py-3 text-lg rounded-full shadow-lg disabled:opacity-50"
             >
-              {isSubmitting ? (
+              {isCheckingDuplicates ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Checking for duplicates...
+                </span>
+              ) : isSubmitting ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin" />
                   Submitting...
@@ -532,6 +620,18 @@ export default function ReportIssuePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Duplicate Issue Modal */}
+      {duplicateResult && (
+        <DuplicateIssueModal
+          isOpen={showDuplicateModal}
+          onClose={() => setShowDuplicateModal(false)}
+          duplicates={duplicateResult.duplicates}
+          confidence={duplicateResult.confidence}
+          onProceedAnyway={handleProceedAnyway}
+          onCancel={handleCancelSubmission}
+        />
+      )}
     </div>
   );
 }
