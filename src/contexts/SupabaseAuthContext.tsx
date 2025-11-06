@@ -72,14 +72,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Load user profile
   const loadUserProfile = useCallback(async (userId: string) => {
     try {
+      console.log('Loading user profile for userId:', userId);
       const profile = await userService.getProfile(userId)
+      console.log('Loaded user profile:', profile);
       setUserProfile(profile)
       
       if (!profile) {
+        console.log('No profile found, setting as new user');
         setIsNewUser(true)
       } else if (!profile.is_onboarding_complete) {
+        console.log('Profile found but onboarding not complete, setting as new user');
         setIsNewUser(true)
       } else {
+        console.log('Profile found and onboarding complete, user type:', profile.user_type);
         setIsNewUser(false)
       }
     } catch (error) {
@@ -172,7 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             full_name: name,
             user_type: userType,
             department: (userType === 'authority' || userType === 'worker') ? department : undefined,
-            is_onboarding_complete: false,
+            is_onboarding_complete: userType === 'worker' ? true : false, // Workers don't need onboarding
           })
           
           setUserProfile(profile)

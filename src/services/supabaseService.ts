@@ -362,11 +362,14 @@ export const storageService = new StorageService()
 class UserService extends BaseService {
   async getProfile(userId: string): Promise<User | null> {
     try {
+      console.log('UserService: Getting profile for userId:', userId);
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('id', userId)
         .single()
+      
+      console.log('UserService: Profile query result:', { data, error });
       
       if (error && error.code === 'PGRST116') {
         return null // Not found
@@ -395,6 +398,7 @@ class UserService extends BaseService {
   }
 
   async createProfile(profileData: Omit<User, 'created_at'>): Promise<User> {
+    console.log('UserService: Creating profile with data:', profileData);
     return this.executeQuery(
       () => supabase
         .from('user_profiles')
