@@ -35,6 +35,7 @@ interface AuthContextType {
   // Utility methods
   isAuthority: () => boolean
   isCitizen: () => boolean
+  isWorker: () => boolean
   hasPermission: (permission: string) => boolean
 }
 
@@ -170,7 +171,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: data.user.email || email,
             full_name: name,
             user_type: userType,
-            department: userType === 'authority' ? department : undefined,
+            department: (userType === 'authority' || userType === 'worker') ? department : undefined,
             is_onboarding_complete: false,
           })
           
@@ -356,6 +357,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Utility methods
   const isAuthority = () => userProfile?.user_type === 'authority'
   const isCitizen = () => userProfile?.user_type === 'citizen'
+  const isWorker = () => userProfile?.user_type === 'worker'
   
   const hasPermission = (permission: string) => {
     if (!userProfile) return false
@@ -398,6 +400,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Utility methods
     isAuthority,
     isCitizen,
+    isWorker,
     hasPermission,
   }
 

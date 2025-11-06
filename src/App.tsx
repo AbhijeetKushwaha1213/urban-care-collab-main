@@ -25,6 +25,7 @@ import AuthCallback from "./pages/AuthCallback";
 import WorkerDashboard from "./pages/WorkerDashboard";
 import WorkerTaskDetail from "./pages/WorkerTaskDetail";
 import WorkerTaskComplete from "./pages/WorkerTaskComplete";
+import SmartDashboard from "./components/SmartDashboard";
 
 const queryClient = new QueryClient();
 
@@ -54,7 +55,7 @@ const OnboardingRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/" replace />;
   }
   
-  // If not a new user, redirect to dashboard
+  // If not a new user, redirect to smart dashboard
   if (!isNewUser) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -146,7 +147,7 @@ const AppRoutes = () => {
         <Route path="/dashboard" element={
           <SafeRoute>
             <ProtectedRoute>
-              <UserHomepage />
+              <SmartDashboard />
             </ProtectedRoute>
           </SafeRoute>
         } />
