@@ -7,6 +7,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { 
   CheckCircle, 
   Clock, 
@@ -58,6 +61,15 @@ const WorkerDashboard: React.FC = () => {
   // Profile modal state
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [workerProfile, setWorkerProfile] = useState<any>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    full_name: '',
+    department: '',
+    phone_number: '',
+    address: '',
+    avatar_url: ''
+  });
   const [performanceStats, setPerformanceStats] = useState({
     totalTasksCompleted: 0,
     thisMonthCompleted: 0,
@@ -187,6 +199,15 @@ const WorkerDashboard: React.FC = () => {
 
       setWorker(workerData);
       setWorkerProfile(workerData);
+      
+      // Set form data for editing
+      setProfileForm({
+        full_name: workerData.full_name || '',
+        department: workerData.department || '',
+        phone_number: workerData.phone_number || '',
+        address: workerData.address || '',
+        avatar_url: workerData.avatar_url || ''
+      });
 
     } catch (error) {
       console.error('Error loading worker profile:', error);
@@ -446,6 +467,106 @@ const WorkerDashboard: React.FC = () => {
     }
 
     return achievements;
+  };
+
+  // Handle profile update
+  const handleProfileUpdate = async () => {
+    if (!currentUser) return;
+
+    setIsUpdatingProfile(true);
+    try {
+      // Update user_profiles table
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .update({
+          full_name: profileForm.full_name,
+          department: profileForm.department,
+          phone: profileForm.phone_number,
+          address: profileForm.address,
+          avatar_url: profileForm.avatar_url,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentUser.id);
+
+      if (profileError) throw profileError;
+
+      // Update workers table if it exists
+      const { error: workerError } = await supabase
+        .from('workers')
+        .update({
+          full_name: profileForm.full_name,
+          department: profileForm.department,
+          phone_number: profileForm.phone_number,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', currentUser.id);
+
+      // Don't throw error if workers table update fails (might not exist)
+      if (workerError && workerError.code !== 'PGRST116') {
+        console.warn('Workers table update failed:', workerError);
+      }
+
+      // Update local state
+      const updatedProfile = {
+        ...workerProfile,
+        ...profileForm
+      };
+      setWorkerProfile(updatedProfile);
+      setWorker(updatedProfile);
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully",
+      });
+
+      setEditingProfile(false);
+
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Update Failed",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
+  // Handle image upload
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${currentUser.id}-${Math.random()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('user-uploads')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('user-uploads')
+        .getPublicUrl(filePath);
+
+      setProfileForm(prev => ({ ...prev, avatar_url: publicUrl }));
+
+      toast({
+        title: "Image Uploaded",
+        description: "Profile image uploaded successfully",
+      });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: "Upload Error",
+        description: "Failed to upload image",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleLogout = async () => {
@@ -1027,59 +1148,121 @@ const WorkerDashboard: React.FC = () => {
             {/* Profile Header */}
             <Card>
               <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-                  <div className="relative">
-                    <Avatar className="h-24 w-24 border-4 border-blue-200">
-                      <AvatarImage src={workerProfile?.avatar_url || undefined} />
-                      <AvatarFallback className="text-2xl font-bold bg-blue-100 text-blue-600">
-                        {getWorkerInitials()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="absolute -bottom-2 -right-2 rounded-full p-2 h-8 w-8"
-                    >
-                      <Camera className="h-3 w-3" />
-                    </Button>
+                {editingProfile ? (
+                  /* Edit Mode */
+                  <div className="space-y-6">
+                    <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+                      <div className="relative">
+                        <Avatar className="h-24 w-24 border-4 border-blue-200">
+                          <AvatarImage src={profileForm.avatar_url || workerProfile?.avatar_url || undefined} />
+                          <AvatarFallback className="text-2xl font-bold bg-blue-100 text-blue-600">
+                            {getWorkerInitials()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <label className="absolute -bottom-2 -right-2 rounded-full p-2 h-8 w-8 bg-white border border-gray-300 hover:bg-gray-50 cursor-pointer flex items-center justify-center">
+                          <Camera className="h-3 w-3" />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                      
+                      <div className="flex-1 space-y-4">
+                        <div>
+                          <Label htmlFor="full_name">Full Name</Label>
+                          <Input
+                            id="full_name"
+                            value={profileForm.full_name}
+                            onChange={(e) => setProfileForm(prev => ({ ...prev, full_name: e.target.value }))}
+                            placeholder="Enter your full name"
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="department">Department</Label>
+                          <Input
+                            id="department"
+                            value={profileForm.department}
+                            onChange={(e) => setProfileForm(prev => ({ ...prev, department: e.target.value }))}
+                            placeholder="Enter your department"
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="phone_number">Phone Number</Label>
+                          <Input
+                            id="phone_number"
+                            value={profileForm.phone_number}
+                            onChange={(e) => setProfileForm(prev => ({ ...prev, phone_number: e.target.value }))}
+                            placeholder="Enter your phone number"
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="address">Address</Label>
+                          <Textarea
+                            id="address"
+                            value={profileForm.address}
+                            onChange={(e) => setProfileForm(prev => ({ ...prev, address: e.target.value }))}
+                            placeholder="Enter your address"
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  
-                  <div className="flex-1 text-center md:text-left">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                      {workerProfile?.full_name || 'Field Worker'}
-                    </h2>
-                    <p className="text-lg text-blue-600 mb-2">{workerProfile?.department || 'General'} Department</p>
+                ) : (
+                  /* View Mode */
+                  <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+                    <div className="relative">
+                      <Avatar className="h-24 w-24 border-4 border-blue-200">
+                        <AvatarImage src={workerProfile?.avatar_url || undefined} />
+                        <AvatarFallback className="text-2xl font-bold bg-blue-100 text-blue-600">
+                          {getWorkerInitials()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Shield className="h-4 w-4" />
-                        <span>ID: {workerProfile?.employee_id || 'EMP001'}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Phone className="h-4 w-4" />
-                        <span>{workerProfile?.phone_number || '+91-9876543210'}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Mail className="h-4 w-4" />
-                        <span>{currentUser?.email}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Home className="h-4 w-4" />
-                        <span>{workerProfile?.address || 'Municipal Office, City Center'}</span>
+                    <div className="flex-1 text-center md:text-left">
+                      <h2 className="text-2xl font-bold text-gray-900 mb-1">
+                        {workerProfile?.full_name || 'Field Worker'}
+                      </h2>
+                      <p className="text-lg text-blue-600 mb-2">{workerProfile?.department || 'General'} Department</p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Shield className="h-4 w-4" />
+                          <span>ID: {workerProfile?.employee_id || 'TEMP001'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Phone className="h-4 w-4" />
+                          <span>{workerProfile?.phone_number || 'Not provided'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Mail className="h-4 w-4" />
+                          <span>{currentUser?.email}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Home className="h-4 w-4" />
+                          <span>{workerProfile?.address || 'Not provided'}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="text-center">
-                    <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getPerformanceLevel(performanceStats.averageRating).bg} ${getPerformanceLevel(performanceStats.averageRating).color}`}>
-                      <Star className="h-4 w-4 mr-1" />
-                      {getPerformanceLevel(performanceStats.averageRating).level}
+                    
+                    <div className="text-center">
+                      <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getPerformanceLevel(performanceStats.averageRating).bg} ${getPerformanceLevel(performanceStats.averageRating).color}`}>
+                        <Star className="h-4 w-4 mr-1" />
+                        {getPerformanceLevel(performanceStats.averageRating).level}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Experience: {getWorkExperience()}
+                      </p>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Experience: {getWorkExperience()}
-                    </p>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1221,13 +1404,57 @@ const WorkerDashboard: React.FC = () => {
 
             {/* Action Buttons */}
             <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button variant="outline" onClick={() => setProfileModalOpen(false)}>
-                Close
-              </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700">
-                <Edit className="h-4 w-4 mr-2" />
-                Edit Profile
-              </Button>
+              {editingProfile ? (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setEditingProfile(false);
+                      // Reset form to original values
+                      setProfileForm({
+                        full_name: workerProfile?.full_name || '',
+                        department: workerProfile?.department || '',
+                        phone_number: workerProfile?.phone_number || '',
+                        address: workerProfile?.address || '',
+                        avatar_url: workerProfile?.avatar_url || ''
+                      });
+                    }}
+                    disabled={isUpdatingProfile}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleProfileUpdate}
+                    disabled={isUpdatingProfile}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isUpdatingProfile ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={() => setProfileModalOpen(false)}>
+                    Close
+                  </Button>
+                  <Button 
+                    onClick={() => setEditingProfile(true)}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </DialogContent>
