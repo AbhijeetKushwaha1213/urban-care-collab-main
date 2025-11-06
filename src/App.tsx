@@ -27,6 +27,9 @@ import WorkerTaskDetail from "./pages/WorkerTaskDetail";
 import WorkerTaskComplete from "./pages/WorkerTaskComplete";
 import SmartDashboard from "./components/SmartDashboard";
 
+// Import debug functions for browser console
+import './debug/fix-user-profiles';
+
 const queryClient = new QueryClient();
 
 // ProtectedRoute component to handle authentication

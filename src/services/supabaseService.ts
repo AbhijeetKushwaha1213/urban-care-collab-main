@@ -370,6 +370,10 @@ class UserService extends BaseService {
         .single()
       
       console.log('UserService: Profile query result:', { data, error });
+      if (data) {
+        console.log('UserService: Profile fields:', Object.keys(data));
+        console.log('UserService: user_type field value:', data.user_type);
+      }
       
       if (error && error.code === 'PGRST116') {
         return null // Not found

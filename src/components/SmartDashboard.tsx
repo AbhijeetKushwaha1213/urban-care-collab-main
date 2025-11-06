@@ -70,9 +70,24 @@ const SmartDashboard: React.FC = () => {
     return <LoadingSpinner fullScreen message="Loading your profile..." />;
   }
 
-  // If user is a citizen or fallback, show the UserHomepage
-  if (userProfile.user_type === 'citizen' || !userProfile.user_type) {
-    console.log('SmartDashboard: Showing UserHomepage for citizen or undefined user type');
+  // Handle undefined user_type (database migration issue)
+  if (!userProfile.user_type) {
+    console.log('SmartDashboard: user_type is undefined, checking department field');
+    // If user has a department, they might be a worker or authority
+    if (userProfile.department) {
+      console.log('SmartDashboard: User has department, treating as worker for now');
+      console.log('SmartDashboard: Redirecting to worker dashboard (inferred from department)');
+      navigate('/worker/dashboard', { replace: true });
+      return <LoadingSpinner fullScreen message="Redirecting to worker dashboard..." />;
+    } else {
+      console.log('SmartDashboard: No department, treating as citizen');
+      return <UserHomepage />;
+    }
+  }
+
+  // If user is a citizen, show the UserHomepage
+  if (userProfile.user_type === 'citizen') {
+    console.log('SmartDashboard: Showing UserHomepage for citizen');
     return <UserHomepage />;
   }
 
