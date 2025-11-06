@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Brain, MapPin, Bell, BarChart3, Users, Shield } from 'lucide-react';
+import { Brain, MapPin, Bell, BarChart3, Users, Shield, Wrench } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AuthModal from '@/components/AuthModal';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
@@ -11,7 +11,7 @@ export default function Landing() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [selectedUserType, setSelectedUserType] = useState<'citizen' | 'authority' | null>(null);
+  const [selectedUserType, setSelectedUserType] = useState<'citizen' | 'authority' | 'worker' | null>(null);
 
   const handleGetStarted = () => {
     // Scroll to the user type selection section
@@ -40,6 +40,17 @@ export default function Landing() {
     }
   };
 
+  const handleWorkerAccess = () => {
+    if (currentUser) {
+      // User is already logged in, redirect directly
+      navigate('/worker/dashboard');
+    } else {
+      // User not logged in, show auth modal
+      setSelectedUserType('worker');
+      setAuthModalOpen(true);
+    }
+  };
+
   const handleAuthSuccess = () => {
     // After successful authentication, redirect based on selected user type
     setAuthModalOpen(false);
@@ -47,6 +58,8 @@ export default function Landing() {
       navigate('/issues');
     } else if (selectedUserType === 'authority') {
       navigate('/authority-dashboard');
+    } else if (selectedUserType === 'worker') {
+      navigate('/worker/dashboard');
     }
     setSelectedUserType(null);
   };
@@ -132,12 +145,12 @@ export default function Landing() {
         {/* User Selection Section */}
         <section id="user-selection" className="py-20 px-6 bg-black/30 backdrop-blur-sm">
           <h2 className="text-3xl font-bold text-center mb-12 text-white drop-shadow-lg">Choose Your Access Type</h2>
-          <div className="flex flex-col md:flex-row justify-center gap-8 max-w-4xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-center gap-6 max-w-6xl mx-auto">
           
             {/* Citizen Access */}
             <motion.div 
               whileHover={{ scale: 1.05 }} 
-              className="bg-white/20 p-8 rounded-2xl text-center shadow-xl w-full md:w-1/2 backdrop-blur-md border border-white/20"
+              className="bg-white/20 p-8 rounded-2xl text-center shadow-xl w-full md:w-1/3 backdrop-blur-md border border-white/20"
             >
               <Users className="w-16 h-16 text-pink-400 mx-auto mb-4" />
               <h3 className="text-2xl font-semibold mb-4 text-pink-400">Citizen Access</h3>
@@ -155,7 +168,7 @@ export default function Landing() {
             {/* Authority Access */}
             <motion.div 
               whileHover={{ scale: 1.05 }} 
-              className="bg-white/20 p-8 rounded-2xl text-center shadow-xl w-full md:w-1/2 backdrop-blur-md border border-white/20"
+              className="bg-white/20 p-8 rounded-2xl text-center shadow-xl w-full md:w-1/3 backdrop-blur-md border border-white/20"
             >
               <Shield className="w-16 h-16 text-blue-400 mx-auto mb-4" />
               <h3 className="text-2xl font-semibold mb-4 text-blue-400">Authority Access</h3>
@@ -167,6 +180,24 @@ export default function Landing() {
                 className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full w-full"
               >
                 Access as Authority
+              </Button>
+            </motion.div>
+
+            {/* Worker Access */}
+            <motion.div 
+              whileHover={{ scale: 1.05 }} 
+              className="bg-white/20 p-8 rounded-2xl text-center shadow-xl w-full md:w-1/3 backdrop-blur-md border border-white/20"
+            >
+              <Wrench className="w-16 h-16 text-green-400 mx-auto mb-4" />
+              <h3 className="text-2xl font-semibold mb-4 text-green-400">Worker Access</h3>
+              <p className="text-white/90 text-sm mb-6">
+                Field workers and municipal staff. Complete assigned tasks, upload proof of work, and manage ground-level operations.
+              </p>
+              <Button 
+                onClick={handleWorkerAccess}
+                className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-full w-full"
+              >
+                Access as Worker
               </Button>
             </motion.div>
           </div>
@@ -206,25 +237,15 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 text-center text-gray-400 bg-gray-950 border-t border-gray-800">
-        <div className="mb-4">
-          <Button
-            onClick={() => navigate('/worker/login')}
-            variant="outline"
-            className="text-blue-400 border-blue-400 hover:bg-blue-400 hover:text-white mr-4"
-          >
-            Worker Login
-          </Button>
-          <span className="text-gray-500 text-sm">Field Worker Portal</span>
-        </div>
-        <p>© 2025 Nagar Setu | Empowering Citizens for Smarter Cities</p>
+      <footer className="py-6 text-center text-gray-400 bg-gray-950 border-t border-gray-800">
+        © 2025 Nagar Setu | Empowering Citizens for Smarter Cities
       </footer>
 
       {/* Auth Modal */}
       <AuthModal 
         isOpen={authModalOpen} 
         onClose={handleAuthClose}
-        redirectTo={selectedUserType === 'citizen' ? '/issues' : '/authority-dashboard'}
+        redirectTo={selectedUserType === 'citizen' ? '/issues' : selectedUserType === 'worker' ? '/worker/dashboard' : '/authority-dashboard'}
         userType={selectedUserType || 'citizen'}
       />
       </div>

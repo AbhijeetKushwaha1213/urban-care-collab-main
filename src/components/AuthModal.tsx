@@ -11,7 +11,7 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   redirectTo?: string;
-  userType?: 'citizen' | 'authority';
+  userType?: 'citizen' | 'authority' | 'worker';
 }
 
 const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo, userType = 'citizen' }) => {
@@ -96,7 +96,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo, user
           title: "Account created",
           description: userType === 'authority' 
             ? "Your authority account has been created successfully" 
-            : "Your account has been created successfully",
+            : userType === 'worker'
+              ? "Your worker account has been created successfully"
+              : "Your account has been created successfully",
         });
         onClose();
         if (redirectTo) {
@@ -166,7 +168,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo, user
         
         <div className="p-6 sm:p-8">
           <h2 className="text-2xl font-semibold mb-1 text-gray-900">
-            {isSignIn ? 'Welcome back' : `Create ${userType === 'authority' ? 'Authority' : 'Citizen'} Account`}
+            {isSignIn ? 'Welcome back' : `Create ${userType === 'authority' ? 'Authority' : userType === 'worker' ? 'Worker' : 'Citizen'} Account`}
           </h2>
           <p className="text-gray-600 mb-6">
             {redirectTo === '/issues/report' 
@@ -175,7 +177,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo, user
                 ? `Sign in to your ${userType} account to continue` 
                 : userType === 'authority'
                   ? 'Join as an authority to manage and resolve community issues'
-                  : 'Join our community to help improve your neighborhood'
+                  : userType === 'worker'
+                    ? 'Join as a field worker to complete assigned tasks and help resolve issues'
+                    : 'Join our community to help improve your neighborhood'
             }
           </p>
           
@@ -203,44 +207,45 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo, user
                   </div>
                 </div>
 
-                {userType === 'authority' && (
-                  <>
-                    <div>
-                      <label htmlFor="department" className="block text-sm font-medium mb-1.5 text-gray-700">
-                        Department
-                      </label>
-                      <select
-                        id="department"
-                        value={department}
-                        onChange={(e) => setDepartment(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        required={!isSignIn && userType === 'authority'}
-                        disabled={isLoading || googleLoading || isValidatingCode}
-                      >
-                        <option value="">Select Department</option>
-                        {departments.map((dept) => (
-                          <option key={dept} value={dept}>
-                            {dept}
-                          </option>
-                        ))}
-                      </select>
-                      
-                      {department === 'Other' && (
-                        <div className="mt-2">
-                          <input
-                            type="text"
-                            value={customDepartment}
-                            onChange={(e) => setCustomDepartment(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="Enter your department"
-                            required={department === 'Other'}
-                            disabled={isLoading || googleLoading || isValidatingCode}
-                          />
-                        </div>
-                      )}
-                    </div>
+                {(userType === 'authority' || userType === 'worker') && (
+                  <div>
+                    <label htmlFor="department" className="block text-sm font-medium mb-1.5 text-gray-700">
+                      Department
+                    </label>
+                    <select
+                      id="department"
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required={!isSignIn && (userType === 'authority' || userType === 'worker')}
+                      disabled={isLoading || googleLoading || isValidatingCode}
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map((dept) => (
+                        <option key={dept} value={dept}>
+                          {dept}
+                        </option>
+                      ))}
+                    </select>
+                    
+                    {department === 'Other' && (
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          value={customDepartment}
+                          onChange={(e) => setCustomDepartment(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Enter your department"
+                          required={department === 'Other'}
+                          disabled={isLoading || googleLoading || isValidatingCode}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                    <div>
+                {userType === 'authority' && (
+                  <div>
                       <label htmlFor="authorityAccessCode" className="block text-sm font-medium mb-1.5 text-gray-700">
                         Authority Access Code
                       </label>
@@ -262,8 +267,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo, user
                       <p className="mt-1 text-xs text-gray-500">
                         Contact your administrator if you don't have an access code
                       </p>
-                    </div>
-                  </>
+                  </div>
                 )}
               </>
             )}

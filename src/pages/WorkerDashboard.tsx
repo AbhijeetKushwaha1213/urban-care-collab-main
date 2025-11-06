@@ -18,11 +18,12 @@ import {
   Phone
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import WorkerAuthService from '@/services/workerAuthService';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { WorkerTask, WorkerDashboardStats } from '@/types';
 
 const WorkerDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { currentUser, userProfile, logOut } = useAuth();
   const [worker, setWorker] = useState<any>(null);
   const [stats, setStats] = useState<WorkerDashboardStats>({
     pendingTasks: 0,
@@ -40,20 +41,24 @@ const WorkerDashboard: React.FC = () => {
 
   const loadWorkerData = async () => {
     try {
-      const session = WorkerAuthService.getCurrentWorkerSession();
-      if (!session) {
-        navigate('/worker/login');
+      if (!currentUser || !userProfile) {
+        navigate('/');
         return;
       }
 
-      setWorker(session.worker);
+      if (userProfile.user_type !== 'worker') {
+        navigate('/');
+        return;
+      }
+
+      setWorker(userProfile);
       
       // Load tasks and stats (mock data for now)
       const mockPendingTasks: WorkerTask[] = [
         {
           id: '1',
           issue_id: 'P-1045',
-          worker_id: session.worker.id,
+          worker_id: userProfile.id,
           title: 'Pothole Repair',
           description: 'Large pothole causing vehicle damage near City Bank',
           location: '123 Main St, Sector 5',
@@ -67,7 +72,7 @@ const WorkerDashboard: React.FC = () => {
         {
           id: '2',
           issue_id: 'S-2031',
-          worker_id: session.worker.id,
+          worker_id: userProfile.id,
           title: 'Streetlight Repair',
           description: 'Non-functional streetlight creating safety hazard',
           location: '456 Oak Avenue, Downtown',
@@ -81,7 +86,7 @@ const WorkerDashboard: React.FC = () => {
         {
           id: '3',
           issue_id: 'T-3012',
-          worker_id: session.worker.id,
+          worker_id: userProfile.id,
           title: 'Trash Collection',
           description: 'Overflowing garbage bins need immediate attention',
           location: '789 Pine Road, North District',
@@ -97,7 +102,7 @@ const WorkerDashboard: React.FC = () => {
         {
           id: '4',
           issue_id: 'W-4001',
-          worker_id: session.worker.id,
+          worker_id: userProfile.id,
           title: 'Water Leak Fixed',
           description: 'Repaired water pipe leak on Elm Street',
           location: '321 Elm Street, Central',
@@ -136,12 +141,12 @@ const WorkerDashboard: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await WorkerAuthService.logoutWorker();
+      await logOut();
       toast({
         title: "Logged Out",
         description: "You have been successfully logged out",
       });
-      navigate('/worker/login');
+      navigate('/');
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -198,7 +203,7 @@ const WorkerDashboard: React.FC = () => {
             </div>
             <div>
               <h1 className="text-lg font-semibold">{worker?.full_name}</h1>
-              <p className="text-blue-100 text-sm">ID: {worker?.employee_id}</p>
+              <p className="text-blue-100 text-sm">Department: {worker?.department}</p>
             </div>
           </div>
           <Button

@@ -22,7 +22,6 @@ import UserOnboarding from "./pages/UserOnboarding";
 import EventDetail from "./pages/EventDetail";
 import AuthorityDashboard from "./pages/AuthorityDashboard";
 import AuthCallback from "./pages/AuthCallback";
-import WorkerLogin from "./pages/WorkerLogin";
 import WorkerDashboard from "./pages/WorkerDashboard";
 import WorkerTaskDetail from "./pages/WorkerTaskDetail";
 import WorkerTaskComplete from "./pages/WorkerTaskComplete";
@@ -180,10 +179,9 @@ const AppRoutes = () => {
         <Route path="/auth/callback" element={<SafeRoute><AuthCallback /></SafeRoute>} />
         
         {/* Worker Routes */}
-        <Route path="/worker/login" element={<SafeRoute><WorkerLogin /></SafeRoute>} />
-        <Route path="/worker/dashboard" element={<SafeRoute><WorkerDashboard /></SafeRoute>} />
-        <Route path="/worker/task/:taskId" element={<SafeRoute><WorkerTaskDetail /></SafeRoute>} />
-        <Route path="/worker/task/:taskId/complete" element={<SafeRoute><WorkerTaskComplete /></SafeRoute>} />
+        <Route path="/worker/dashboard" element={<SafeRoute><ProtectedRoute><WorkerDashboard /></ProtectedRoute></SafeRoute>} />
+        <Route path="/worker/task/:taskId" element={<SafeRoute><ProtectedRoute><WorkerTaskDetail /></ProtectedRoute></SafeRoute>} />
+        <Route path="/worker/task/:taskId/complete" element={<SafeRoute><ProtectedRoute><WorkerTaskComplete /></ProtectedRoute></SafeRoute>} />
         
         <Route path="*" element={<SafeRoute><NotFound /></SafeRoute>} />
       </Routes>
