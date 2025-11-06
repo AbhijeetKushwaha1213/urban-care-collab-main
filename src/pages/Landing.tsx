@@ -245,7 +245,7 @@ export default function Landing() {
       <AuthModal 
         isOpen={authModalOpen} 
         onClose={handleAuthClose}
-        redirectTo={selectedUserType === 'citizen' ? '/issues' : selectedUserType === 'worker' ? '/worker/dashboard' : '/authority-dashboard'}
+        redirectTo={selectedUserType === 'citizen' ? '/issues' : '/dashboard'}
         userType={selectedUserType || 'citizen'}
       />
       </div>

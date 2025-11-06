@@ -59,9 +59,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo, user
           description: "Welcome back!",
         });
         onClose();
-        if (redirectTo) {
-          navigate(redirectTo);
-        }
+        // Always navigate to dashboard for signin, let SmartDashboard route based on user type
+        navigate('/dashboard');
       } else {
         // Sign up logic - validate authority access code if needed
         if (userType === 'authority') {
@@ -101,8 +100,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, redirectTo, user
               : "Your account has been created successfully",
         });
         onClose();
-        if (redirectTo) {
+        // For workers and authorities, let SmartDashboard handle routing after profile loads
+        if (userType === 'citizen' && redirectTo) {
           navigate(redirectTo);
+        } else if ((userType === 'worker' || userType === 'authority')) {
+          navigate('/dashboard');
         }
       }
     } catch (error) {
