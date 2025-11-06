@@ -10,7 +10,7 @@
 import crypto from 'crypto';
 
 // Generate a secure random access code
-function generateSecureCode(prefix = 'URBAN_CARE', year = new Date().getFullYear()) {
+function generateSecureCode(prefix = 'NAGAR_SETU', year = new Date().getFullYear()) {
   // Generate 16 random bytes and convert to uppercase hex
   const randomBytes = crypto.randomBytes(8).toString('hex').toUpperCase();
   

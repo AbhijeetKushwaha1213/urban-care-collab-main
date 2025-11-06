@@ -133,7 +133,7 @@ const UserOnboarding = () => {
           </div>
           <h1 className="text-3xl font-semibold mb-2">Complete Your Profile</h1>
           <p className="text-muted-foreground">
-            Tell us a little more about yourself to get the most out of UrbanCare
+            Tell us a little more about yourself to get the most out of Nagar Setu
           </p>
         </div>
         

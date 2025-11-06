@@ -2,10 +2,10 @@ import { IssueCategory, IssueStatus, IssueUrgency, EventStatus } from '@/types';
 
 // Application constants
 export const APP_CONFIG = {
-  name: 'UrbanCare',
+  name: 'Nagar Setu',
   version: '1.0.0',
   description: 'Community-driven urban issue reporting and management platform',
-  supportEmail: 'support@urbancare.com',
+  supportEmail: 'support@nagarsetu.com',
 } as const;
 
 // Route constants

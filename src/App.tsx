@@ -192,7 +192,7 @@ const App = () => {
 
   React.useEffect(() => {
     // Log app initialization
-    console.log('Urban Care App initializing...');
+    console.log('Nagar Setu App initializing...');
     console.log('Environment:', import.meta.env.MODE);
     console.log('Supabase URL available:', !!import.meta.env.VITE_SUPABASE_URL);
     

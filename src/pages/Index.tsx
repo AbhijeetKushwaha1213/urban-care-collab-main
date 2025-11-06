@@ -93,7 +93,7 @@ const Index = () => {
           </h1>
           
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto text-balance animate-slide-down" style={{ animationDelay: '0.2s' }}>
-            UrbanCare connects neighbors, communities, and local authorities to identify, discuss, and solve urban problems together.
+            Nagar Setu connects neighbors, communities, and local authorities to identify, discuss, and solve urban problems together.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-down" style={{ animationDelay: '0.3s' }}>
@@ -159,7 +159,7 @@ const Index = () => {
       <section className="py-16 px-4 md:px-6 bg-secondary/50">
         <div className="container mx-auto">
           <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl font-semibold mb-4">How UrbanCare Works</h2>
+            <h2 className="text-3xl font-semibold mb-4">How Nagar Setu Works</h2>
             <p className="text-lg text-muted-foreground">
               Our platform enables communities to collaboratively address local urban challenges
             </p>
@@ -205,7 +205,7 @@ const Index = () => {
           <div className="max-w-3xl">
             <h2 className="text-3xl md:text-4xl font-semibold mb-4">Ready to improve your neighborhood?</h2>
             <p className="text-lg text-muted-foreground mb-8">
-              Join UrbanCare today and be part of the solution. Together, we can make our communities better places to live.
+              Join Nagar Setu today and be part of the solution. Together, we can make our communities better places to live.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button size="lg" onClick={() => setAuthModalOpen(true)}>Create an Account</Button>
@@ -224,7 +224,7 @@ const Index = () => {
                 <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center mr-2">
                   <MapPin className="h-4 w-4 text-white" />
                 </div>
-                <span className="text-xl font-semibold">UrbanCare</span>
+                <span className="text-xl font-semibold">Nagar Setu</span>
               </div>
               <p className="text-muted-foreground mt-4 max-w-md">
                 A platform for communities to collaboratively solve urban challenges and improve neighborhood living.
@@ -265,7 +265,7 @@ const Index = () => {
           
           <div className="border-t border-border/50 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} UrbanCare. All rights reserved.
+              © {new Date().getFullYear()} Nagar Setu. All rights reserved.
             </p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">

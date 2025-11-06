@@ -335,10 +335,10 @@ const Profile = () => {
               <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center mr-2">
                 <MapPin className="h-3 w-3 text-white" />
               </div>
-              <span className="text-lg font-semibold">UrbanCare</span>
+              <span className="text-lg font-semibold">Nagar Setu</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} UrbanCare. All rights reserved.
+              © {new Date().getFullYear()} Nagar Setu. All rights reserved.
             </p>
           </div>
         </div>

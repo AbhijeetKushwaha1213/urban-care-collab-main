@@ -25,7 +25,7 @@ const AdminAccessCodeManager: React.FC = () => {
   const generateNewCode = () => {
     const year = new Date().getFullYear();
     const randomPart = Math.random().toString(36).substring(2, 15).toUpperCase();
-    const newCode = `URBAN_CARE_${year}_${randomPart}`;
+    const newCode = `NAGAR_SETU_${year}_${randomPart}`;
     setGeneratedCode(newCode);
     
     toast({

@@ -1,6 +1,6 @@
-# 🏙️ UrbanCare - Community Issue Management Platform
+# 🏙️ Nagar Setu - Community Issue Management Platform
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/urban-care)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/nagar-setu)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)](https://reactjs.org/)
@@ -23,8 +23,8 @@
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/your-username/urban-care.git
-cd urban-care
+git clone https://github.com/your-username/nagar-setu.git
+cd nagar-setu
 npm install
 ```
 
@@ -49,7 +49,7 @@ Visit `http://localhost:8080` to see your app running!
 
 1. **One-Click Deploy**
    
-   [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/urban-care)
+   [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/nagar-setu)
 
 2. **Manual Deploy**
    
@@ -153,10 +153,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-- 📧 **Email**: support@urbancare.com
+- 📧 **Email**: support@nagarsetu.com
 - 📖 **Documentation**: [docs/](docs/)
-- 🐛 **Issues**: [GitHub Issues](https://github.com/your-username/urban-care/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/your-username/urban-care/discussions)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/your-username/nagar-setu/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/your-username/nagar-setu/discussions)
 
 ## 🙏 Acknowledgments
 

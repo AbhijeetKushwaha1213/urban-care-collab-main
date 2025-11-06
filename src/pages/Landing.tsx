@@ -80,7 +80,7 @@ export default function Landing() {
             transition={{ duration: 1 }} 
             className="text-5xl font-bold mb-4 text-white drop-shadow-lg"
           >
-            UrbanCare: Smarter Cities, Empowered Citizens
+            Nagar Setu: Smarter Cities, Empowered Citizens
           </motion.h1>
           <p className="text-lg text-white/90 max-w-3xl mx-auto mb-8 drop-shadow-md">
             A next-gen civic engagement platform where citizens report issues instantly, and governments respond smarter with AI-driven prioritization and resolve them.
@@ -184,7 +184,7 @@ export default function Landing() {
             >
               <h3 className="text-xl font-semibold mb-2 text-pink-400">{title}</h3>
               <p className="text-white/90 text-sm">
-                UrbanCare bridges people and governance through technology, transparency, and trust.
+                Nagar Setu bridges people and governance through technology, transparency, and trust.
               </p>
             </motion.div>
           ))}
@@ -207,7 +207,7 @@ export default function Landing() {
 
       {/* Footer */}
       <footer className="py-6 text-center text-gray-400 bg-gray-950 border-t border-gray-800">
-        © 2025 UrbanCare | Empowering Citizens for Smarter Cities
+        © 2025 Nagar Setu | Empowering Citizens for Smarter Cities
       </footer>
 
       {/* Auth Modal */}

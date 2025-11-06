@@ -80,7 +80,7 @@ const Navbar = () => {
               <MapPin className="h-5 w-5 text-white absolute animate-spin-slow" />
               <MapPin className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-semibold">UrbanCare</span>
+            <span className="text-xl font-semibold">Nagar Setu</span>
           </Link>
 
           {/* Desktop Navigation */}

@@ -13,7 +13,7 @@ export const testAuthorityVerification = async () => {
   console.log('1. Checking if access code is configured:', isAuthorityAccessCodeConfigured());
   
   // Test 2: Test valid access code
-  const validCode = 'URBAN_CARE_AUTH_2024_SECURE';
+  const validCode = 'NAGAR_SETU_AUTH_2024_SECURE';
   const isValid = await validateAuthorityAccessCode(validCode);
   console.log('2. Valid code test:', isValid ? 'PASS' : 'FAIL');
   
@@ -23,9 +23,9 @@ export const testAuthorityVerification = async () => {
   console.log('3. Invalid code test:', !isInvalid ? 'PASS' : 'FAIL');
   
   // Test 4: Test code sanitization
-  const dirtyCode = '  URBAN_CARE_AUTH_2024_SECURE  ';
+  const dirtyCode = '  NAGAR_SETU_AUTH_2024_SECURE  ';
   const cleanCode = sanitizeAccessCode(dirtyCode);
-  console.log('4. Sanitization test:', cleanCode === 'URBAN_CARE_AUTH_2024_SECURE' ? 'PASS' : 'FAIL');
+  console.log('4. Sanitization test:', cleanCode === 'NAGAR_SETU_AUTH_2024_SECURE' ? 'PASS' : 'FAIL');
   
   // Test 5: Test empty code
   const emptyResult = await validateAuthorityAccessCode('');
