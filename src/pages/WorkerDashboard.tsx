@@ -30,7 +30,11 @@ import {
   Camera,
   Home,
   Mail,
-  Shield
+  Shield,
+  Navigation,
+  Route,
+  Timer,
+  CalendarClock
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
@@ -131,6 +135,8 @@ const WorkerDashboard: React.FC = () => {
           priority: 'critical',
           status: 'pending',
           assigned_at: new Date().toISOString(),
+          scheduled_date: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
+          estimated_duration: 120, // 2 hours in minutes
           coordinates: { lat: 40.7128, lng: -74.0060 },
           before_image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400'
         },
@@ -145,6 +151,8 @@ const WorkerDashboard: React.FC = () => {
           priority: 'high',
           status: 'pending',
           assigned_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          scheduled_date: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), // 4 hours from now
+          estimated_duration: 90, // 1.5 hours in minutes
           coordinates: { lat: 40.7589, lng: -73.9851 },
           before_image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400'
         },
@@ -159,6 +167,8 @@ const WorkerDashboard: React.FC = () => {
           priority: 'high',
           status: 'pending',
           assigned_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+          scheduled_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
+          estimated_duration: 60, // 1 hour in minutes
           coordinates: { lat: 40.7505, lng: -73.9934 }
         }
       ];
@@ -276,6 +286,70 @@ const WorkerDashboard: React.FC = () => {
     return { level: "Needs Improvement", color: "text-red-600", bg: "bg-red-100" };
   };
 
+  // Format scheduled date and time
+  const formatScheduledTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffHours = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60));
+    
+    if (diffHours < 0) return { text: 'Overdue', color: 'text-red-600', bg: 'bg-red-50' };
+    if (diffHours < 1) return { text: 'Due now', color: 'text-orange-600', bg: 'bg-orange-50' };
+    if (diffHours < 24) return { 
+      text: `Due in ${diffHours}h`, 
+      color: diffHours <= 2 ? 'text-orange-600' : 'text-blue-600',
+      bg: diffHours <= 2 ? 'bg-orange-50' : 'bg-blue-50'
+    };
+    
+    const days = Math.floor(diffHours / 24);
+    return { 
+      text: `Due in ${days}d`, 
+      color: 'text-gray-600',
+      bg: 'bg-gray-50'
+    };
+  };
+
+  // Format duration
+  const formatDuration = (minutes: number) => {
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+  };
+
+  // Open maps with route to location
+  const openMapsWithRoute = (task: WorkerTask) => {
+    const { coordinates, location } = task;
+    
+    // Try to get current location first
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const currentLat = position.coords.latitude;
+          const currentLng = position.coords.longitude;
+          
+          // Open Google Maps with route
+          const mapsUrl = `https://www.google.com/maps/dir/${currentLat},${currentLng}/${coordinates.lat},${coordinates.lng}`;
+          window.open(mapsUrl, '_blank');
+        },
+        (error) => {
+          console.warn('Location access denied, opening maps without route');
+          // Fallback: Open maps at destination
+          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${coordinates.lat},${coordinates.lng}`;
+          window.open(mapsUrl, '_blank');
+        }
+      );
+    } else {
+      // Fallback: Open maps at destination
+      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${coordinates.lat},${coordinates.lng}`;
+      window.open(mapsUrl, '_blank');
+    }
+    
+    toast({
+      title: "Opening Maps",
+      description: `Getting route to ${location}`,
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -375,8 +449,97 @@ const WorkerDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Performance Summary */}
-      <div className="px-4 mb-4">
+      {/* Today's Schedule & Quick Actions */}
+      <div className="px-4 mb-4 space-y-4">
+        {/* Today's Schedule */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+            <CalendarClock className="h-4 w-4 mr-2 text-blue-600" />
+            Today's Schedule
+          </h3>
+          <div className="space-y-2">
+            {pendingTasks
+              .filter(task => task.scheduled_date && new Date(task.scheduled_date).toDateString() === new Date().toDateString())
+              .map(task => {
+                const scheduledTime = formatScheduledTime(task.scheduled_date!);
+                return (
+                  <div key={task.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span className="text-sm font-medium">{task.title}</span>
+                    </div>
+                    <div className={`text-xs px-2 py-1 rounded-full ${scheduledTime.bg} ${scheduledTime.color}`}>
+                      {new Date(task.scheduled_date!).toLocaleTimeString('en-IN', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            {pendingTasks.filter(task => task.scheduled_date && new Date(task.scheduled_date).toDateString() === new Date().toDateString()).length === 0 && (
+              <p className="text-sm text-gray-500 text-center py-2">No tasks scheduled for today</p>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+            <Route className="h-4 w-4 mr-2 text-green-600" />
+            Quick Actions
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <Button 
+              variant="outline" 
+              className="h-12 text-sm border-blue-200 hover:bg-blue-50"
+              onClick={() => {
+                // Plan route for all pending tasks
+                const taskLocations = pendingTasks
+                  .filter(task => task.coordinates)
+                  .map(task => `${task.coordinates.lat},${task.coordinates.lng}`)
+                  .join('/');
+                
+                if (taskLocations) {
+                  navigator.geolocation?.getCurrentPosition(
+                    (position) => {
+                      const currentLat = position.coords.latitude;
+                      const currentLng = position.coords.longitude;
+                      const mapsUrl = `https://www.google.com/maps/dir/${currentLat},${currentLng}/${taskLocations}`;
+                      window.open(mapsUrl, '_blank');
+                    },
+                    () => {
+                      toast({
+                        title: "Location access needed",
+                        description: "Please enable location access for route planning",
+                        variant: "destructive",
+                      });
+                    }
+                  );
+                } else {
+                  toast({
+                    title: "No tasks available",
+                    description: "No pending tasks with locations found",
+                  });
+                }
+              }}
+            >
+              <Route className="h-4 w-4 mr-1" />
+              Plan Route
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              className="h-12 text-sm border-green-200 hover:bg-green-50"
+              onClick={() => window.open('tel:+919876543210')}
+            >
+              <Phone className="h-4 w-4 mr-1" />
+              Call Supervisor
+            </Button>
+          </div>
+        </div>
+
+        {/* Performance Summary */}
         <div className="bg-white rounded-xl p-4 shadow-sm border">
           <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
             <Award className="h-4 w-4 mr-2 text-yellow-600" />
@@ -418,39 +581,96 @@ const WorkerDashboard: React.FC = () => {
                 <p className="text-sm text-gray-500">Great job! All caught up.</p>
               </div>
             ) : (
-              pendingTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="bg-white rounded-lg p-4 shadow-sm border cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => navigate(`/worker/task/${task.id}`)}
-                >
-                  <div className="flex items-start space-x-3">
-                    <div className="bg-blue-100 p-2 rounded-lg flex-shrink-0">
-                      {getCategoryIcon(task.category)}
+              pendingTasks.map((task) => {
+                const scheduledTime = task.scheduled_date ? formatScheduledTime(task.scheduled_date) : null;
+                
+                return (
+                  <div
+                    key={task.id}
+                    className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:shadow-lg hover:border-blue-300 transition-all duration-200"
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="bg-gradient-to-br from-blue-100 to-blue-200 p-3 rounded-xl flex-shrink-0 shadow-sm">
+                        {getCategoryIcon(task.category)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-2">
+                          <Badge className={`text-xs font-semibold ${getPriorityColor(task.priority)} shadow-sm`}>
+                            {task.priority === 'critical' ? '🔴 CRITICAL' : '🟠 HIGH'}
+                          </Badge>
+                          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">#{task.issue_id}</span>
+                        </div>
+                        
+                        <h3 className="font-semibold text-gray-900 mb-1 text-base">{task.title}</h3>
+                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{task.description}</p>
+                        
+                        {/* Scheduled Date & Time */}
+                        {task.scheduled_date && (
+                          <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mb-3 ${scheduledTime?.bg} ${scheduledTime?.color}`}>
+                            <CalendarClock className="h-3 w-3 mr-1" />
+                            <span>{scheduledTime?.text}</span>
+                            <span className="ml-2 text-gray-500">
+                              ({new Date(task.scheduled_date).toLocaleDateString('en-IN', { 
+                                weekday: 'short', 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })})
+                            </span>
+                          </div>
+                        )}
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center text-xs text-gray-500">
+                            <MapPin className="h-3 w-3 mr-2 text-blue-500" />
+                            <span className="truncate font-medium flex-1">{task.location}</span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center text-xs text-gray-500">
+                              <Timer className="h-3 w-3 mr-2 text-green-500" />
+                              <span>Est. {task.estimated_duration ? formatDuration(task.estimated_duration) : '1h'}</span>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Assigned {formatTime(task.assigned_at)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <Badge className={`text-xs ${getPriorityColor(task.priority)}`}>
-                          {task.priority === 'critical' ? '🔴 CRITICAL' : '🟠 HIGH'}
-                        </Badge>
-                        <span className="text-xs text-gray-500">#{task.issue_id}</span>
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-1">{task.title}</h3>
-                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">{task.description}</p>
-                      <div className="flex items-center text-xs text-gray-500 space-x-4">
-                        <div className="flex items-center">
-                          <MapPin className="h-3 w-3 mr-1" />
-                          <span className="truncate">{task.location}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Clock className="h-3 w-3 mr-1" />
-                          <span>{formatTime(task.assigned_at)}</span>
-                        </div>
-                      </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openMapsWithRoute(task);
+                        }}
+                        className="flex-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        <Navigation className="h-4 w-4 mr-1" />
+                        Get Route
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/worker/task/${task.id}`);
+                        }}
+                        className="flex-1 text-green-600 border-green-200 hover:bg-green-50"
+                      >
+                        <Wrench className="h-4 w-4 mr-1" />
+                        Start Work
+                      </Button>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </TabsContent>
 
@@ -466,23 +686,51 @@ const WorkerDashboard: React.FC = () => {
               completedTasks.map((task) => (
                 <div
                   key={task.id}
-                  className="bg-white rounded-lg p-4 shadow-sm border"
+                  className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-4 shadow-sm border border-green-200"
                 >
                   <div className="flex items-start space-x-3">
-                    <div className="bg-green-100 p-2 rounded-lg flex-shrink-0">
+                    <div className="bg-gradient-to-br from-green-100 to-green-200 p-3 rounded-xl flex-shrink-0 shadow-sm">
                       {getCategoryIcon(task.category)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-2">
-                        <Badge className="text-xs bg-green-500 text-white">
+                        <Badge className="text-xs bg-green-500 text-white font-semibold shadow-sm">
                           ✅ COMPLETED
                         </Badge>
-                        <span className="text-xs text-gray-500">#{task.issue_id}</span>
+                        <span className="text-xs font-medium text-gray-500 bg-white px-2 py-1 rounded-full">#{task.issue_id}</span>
                       </div>
-                      <h3 className="font-semibold text-gray-900 mb-1">{task.title}</h3>
-                      <p className="text-sm text-gray-600 mb-2">{task.location}</p>
-                      <div className="text-xs text-gray-500">
-                        Completed {formatTime(task.completed_at || task.assigned_at)}
+                      <h3 className="font-semibold text-gray-900 mb-1 text-base">{task.title}</h3>
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-center text-xs text-gray-600">
+                          <MapPin className="h-3 w-3 mr-2 text-green-600" />
+                          <span className="truncate font-medium flex-1">{task.location}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center text-xs text-gray-500">
+                            <CheckCircle className="h-3 w-3 mr-2 text-green-500" />
+                            <span>Completed {formatTime(task.completed_at || task.assigned_at)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Action Button for Completed Tasks */}
+                      <div className="mt-3 pt-2 border-t border-green-200">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (task.coordinates) {
+                              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${task.coordinates.lat},${task.coordinates.lng}`;
+                              window.open(mapsUrl, '_blank');
+                            }
+                          }}
+                          className="text-green-600 border-green-300 hover:bg-green-50 text-xs"
+                        >
+                          <MapPin className="h-3 w-3 mr-1" />
+                          View Location
+                        </Button>
                       </div>
                     </div>
                   </div>
