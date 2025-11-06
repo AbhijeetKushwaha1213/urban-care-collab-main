@@ -184,7 +184,7 @@ const AppRoutes = () => {
         <Route path="/auth/callback" element={<SafeRoute><AuthCallback /></SafeRoute>} />
         
         {/* Worker Routes */}
-        <Route path="/worker/dashboard" element={<SafeRoute><SimpleWorkerTest /></SafeRoute>} />
+        <Route path="/worker/dashboard" element={<SafeRoute><WorkerDashboard /></SafeRoute>} />
         <Route path="/worker/test" element={<SimpleWorkerTest />} />
         <Route path="/worker/task/:taskId" element={<SafeRoute><ProtectedRoute><WorkerTaskDetail /></ProtectedRoute></SafeRoute>} />
         <Route path="/worker/task/:taskId/complete" element={<SafeRoute><ProtectedRoute><WorkerTaskComplete /></ProtectedRoute></SafeRoute>} />

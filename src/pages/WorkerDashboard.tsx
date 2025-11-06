@@ -41,24 +41,26 @@ const WorkerDashboard: React.FC = () => {
 
   const loadWorkerData = async () => {
     try {
-      if (!currentUser || !userProfile) {
+      if (!currentUser) {
         navigate('/');
         return;
       }
 
-      if (userProfile.user_type !== 'worker') {
+      // Handle case where profile might not be loaded yet or user_type is undefined
+      if (userProfile && userProfile.user_type && userProfile.user_type !== 'worker') {
+        // Only redirect if we're sure they're not a worker
         navigate('/');
         return;
       }
 
-      setWorker(userProfile);
+      setWorker(userProfile || { full_name: currentUser.email, department: 'General' });
       
       // Load tasks and stats (mock data for now)
       const mockPendingTasks: WorkerTask[] = [
         {
           id: '1',
           issue_id: 'P-1045',
-          worker_id: userProfile.id,
+          worker_id: userProfile?.id || currentUser.id,
           title: 'Pothole Repair',
           description: 'Large pothole causing vehicle damage near City Bank',
           location: '123 Main St, Sector 5',
@@ -72,7 +74,7 @@ const WorkerDashboard: React.FC = () => {
         {
           id: '2',
           issue_id: 'S-2031',
-          worker_id: userProfile.id,
+          worker_id: userProfile?.id || currentUser.id,
           title: 'Streetlight Repair',
           description: 'Non-functional streetlight creating safety hazard',
           location: '456 Oak Avenue, Downtown',
@@ -86,7 +88,7 @@ const WorkerDashboard: React.FC = () => {
         {
           id: '3',
           issue_id: 'T-3012',
-          worker_id: userProfile.id,
+          worker_id: userProfile?.id || currentUser.id,
           title: 'Trash Collection',
           description: 'Overflowing garbage bins need immediate attention',
           location: '789 Pine Road, North District',
@@ -102,7 +104,7 @@ const WorkerDashboard: React.FC = () => {
         {
           id: '4',
           issue_id: 'W-4001',
-          worker_id: userProfile.id,
+          worker_id: userProfile?.id || currentUser.id,
           title: 'Water Leak Fixed',
           description: 'Repaired water pipe leak on Elm Street',
           location: '321 Elm Street, Central',
@@ -195,22 +197,32 @@ const WorkerDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Header */}
-      <div className="bg-blue-600 text-white p-4 shadow-lg">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="bg-blue-500 p-2 rounded-full">
-              <User className="h-6 w-6" />
+            <div className="bg-blue-500 p-3 rounded-full shadow-md">
+              <Wrench className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold">{worker?.full_name}</h1>
-              <p className="text-blue-100 text-sm">Department: {worker?.department}</p>
+              <h1 className="text-lg font-semibold">{worker?.full_name || 'Field Worker'}</h1>
+              <p className="text-blue-100 text-sm">
+                {worker?.department || 'General'} Department
+              </p>
+              <p className="text-blue-200 text-xs">
+                🕒 {new Date().toLocaleDateString('en-IN', { 
+                  weekday: 'long', 
+                  day: 'numeric', 
+                  month: 'short' 
+                })}
+              </p>
             </div>
           </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleLogout}
-            className="text-white hover:bg-blue-500"
+            className="text-white hover:bg-blue-500 p-2"
+            title="Logout"
           >
             <LogOut className="h-5 w-5" />
           </Button>

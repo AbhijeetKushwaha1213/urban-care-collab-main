@@ -81,19 +81,23 @@ const issuesData = [
   }
 ];
 
-const categories = ["All", "Infrastructure", "Electricity", "Trash", "Water", "Other"];
-const sortOptions = ["Newest", "Most Comments", "Most Volunteers", "Oldest"];
+const categories = ["All", "Infrastructure", "Electricity", "Trash", "Water", "Drainage", "Other"];
+const sortOptions = ["Newest", "Most Comments", "Most Volunteers", "Oldest", "Priority"];
+const statusOptions = ["All", "reported", "in_progress", "resolved", "closed"];
 
 const Issues = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedStatus, setSelectedStatus] = useState('All');
   const [sortBy, setSortBy] = useState('Newest');
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [totalIssues, setTotalIssues] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Handle upvote updates from IssueCard
   const handleUpvoteUpdate = (issueId: string, newCount: number) => {
@@ -106,13 +110,31 @@ const Issues = () => {
     );
   };
 
-  // Fetch issues from Supabase
-  const fetchIssues = async () => {
-    setLoading(true);
+  // Fetch issues from Supabase with enhanced data
+  const fetchIssues = async (showRefreshing = false) => {
+    if (showRefreshing) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    
     try {
+      // Get total count first
+      const { count } = await supabase
+        .from('issues')
+        .select('*', { count: 'exact', head: true });
+
+      setTotalIssues(count || 0);
+
+      // Fetch issues with enhanced query
       const { data, error } = await supabase
         .from('issues')
-        .select('*')
+        .select(`
+          *,
+          created_by,
+          assigned_to,
+          user_profiles!issues_created_by_fkey(full_name, avatar_url)
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -125,11 +147,15 @@ const Issues = () => {
           description: issue.description,
           location: issue.location,
           category: issue.category,
-          image: issue.image || "https://images.unsplash.com/photo-1604357209793-fca5dca89f97?q=80&w=800&auto=format&fit=crop", // Default image if none
+          image: issue.image || getDefaultImageForCategory(issue.category),
           date: formatDate(issue.created_at),
           commentsCount: issue.comments_count || 0,
           volunteersCount: issue.volunteers_count || 0,
-          status: issue.status
+          status: issue.status,
+          priority: issue.priority || 'medium',
+          createdBy: issue.user_profiles?.full_name || 'Anonymous',
+          assignedTo: issue.assigned_to,
+          updatedAt: issue.updated_at
         };
       });
 
@@ -142,10 +168,25 @@ const Issues = () => {
         variant: "destructive",
       });
       // Fallback to sample data if database fails
-      setIssues(issuesData);
+      setIssues(issuesData.map(issue => ({ ...issue, priority: 'medium', createdBy: 'Anonymous' })));
+      setTotalIssues(issuesData.length);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  // Get default image based on category
+  const getDefaultImageForCategory = (category: string) => {
+    const categoryImages = {
+      'Infrastructure': "https://images.unsplash.com/photo-1604357209793-fca5dca89f97?q=80&w=800&auto=format&fit=crop",
+      'Electricity': "https://images.unsplash.com/photo-1621556712457-1ec8a586daa7?q=80&w=800&auto=format&fit=crop",
+      'Trash': "https://images.unsplash.com/photo-1605600659873-d808a13e4e4e?q=80&w=800&auto=format&fit=crop",
+      'Water': "https://images.unsplash.com/photo-1543674892-7d64d45facad?q=80&w=800&auto=format&fit=crop",
+      'Drainage': "https://images.unsplash.com/photo-1597435877854-a461fb2dd9f2?q=80&w=800&auto=format&fit=crop",
+      'Other': "https://images.unsplash.com/photo-1601325979086-d54da2c7419c?q=80&w=800&auto=format&fit=crop"
+    };
+    return categoryImages[category] || categoryImages['Other'];
   };
 
   useEffect(() => {
@@ -156,7 +197,7 @@ const Issues = () => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        fetchIssues();
+        fetchIssues(true); // Show refreshing indicator
       }
     };
 
@@ -164,10 +205,58 @@ const Issues = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
-  // Real-time subscription for all issues updates
+  // Auto-refresh every 30 seconds when page is visible
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!document.hidden && !loading && !refreshing) {
+        fetchIssues(true);
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [loading, refreshing]);
+
+  // Enhanced real-time subscription for all issues changes
   useEffect(() => {
     const subscription = supabase
-      .channel('issues-updates')
+      .channel('issues-realtime')
+      .on('postgres_changes', 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'issues'
+        }, 
+        (payload) => {
+          console.log('New issue created:', payload);
+          if (payload.new) {
+            const newIssue = {
+              id: payload.new.id,
+              title: payload.new.title,
+              description: payload.new.description,
+              location: payload.new.location,
+              category: payload.new.category,
+              image: payload.new.image || getDefaultImageForCategory(payload.new.category),
+              date: formatDate(payload.new.created_at),
+              commentsCount: 0,
+              volunteersCount: 0,
+              status: payload.new.status,
+              priority: payload.new.priority || 'medium',
+              createdBy: 'Anonymous', // Will be updated on next fetch
+              assignedTo: payload.new.assigned_to,
+              updatedAt: payload.new.updated_at
+            };
+            
+            setIssues(prevIssues => [newIssue, ...prevIssues]);
+            setTotalIssues(prev => prev + 1);
+            
+            // Show toast notification for new issues
+            toast({
+              title: "New issue reported",
+              description: `"${payload.new.title}" has been reported in your area.`,
+            });
+          }
+        }
+      )
       .on('postgres_changes', 
         { 
           event: 'UPDATE', 
@@ -175,7 +264,7 @@ const Issues = () => {
           table: 'issues'
         }, 
         (payload) => {
-          console.log('Real-time issue update:', payload);
+          console.log('Issue updated:', payload);
           if (payload.new) {
             setIssues(prevIssues => 
               prevIssues.map(issue => 
@@ -184,11 +273,30 @@ const Issues = () => {
                       ...issue,
                       volunteersCount: payload.new.volunteers_count || 0,
                       commentsCount: payload.new.comments_count || 0,
-                      status: payload.new.status
+                      status: payload.new.status,
+                      priority: payload.new.priority || issue.priority,
+                      assignedTo: payload.new.assigned_to,
+                      updatedAt: payload.new.updated_at
                     }
                   : issue
               )
             );
+          }
+        }
+      )
+      .on('postgres_changes', 
+        { 
+          event: 'DELETE', 
+          schema: 'public', 
+          table: 'issues'
+        }, 
+        (payload) => {
+          console.log('Issue deleted:', payload);
+          if (payload.old) {
+            setIssues(prevIssues => 
+              prevIssues.filter(issue => issue.id !== payload.old.id)
+            );
+            setTotalIssues(prev => Math.max(0, prev - 1));
           }
         }
       )
@@ -222,41 +330,73 @@ const Issues = () => {
     }
   };
 
-  // Filter and sort issues
+  // Enhanced filter and sort issues
   const filteredIssues = issues.filter(issue => {
     const matchesSearch = issue.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          issue.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         issue.location.toLowerCase().includes(searchQuery.toLowerCase());
+                         issue.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         issue.createdBy.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesCategory = selectedCategory === 'All' || issue.category === selectedCategory;
+    const matchesStatus = selectedStatus === 'All' || issue.status === selectedStatus;
     
-    return matchesSearch && matchesCategory;
+    return matchesSearch && matchesCategory && matchesStatus;
   }).sort((a, b) => {
     switch (sortBy) {
       case 'Most Comments':
         return b.commentsCount - a.commentsCount;
       case 'Most Volunteers':
         return b.volunteersCount - a.volunteersCount;
+      case 'Priority':
+        const priorityOrder = { 'critical': 3, 'high': 2, 'medium': 1, 'low': 0 };
+        return (priorityOrder[b.priority] || 1) - (priorityOrder[a.priority] || 1);
       case 'Oldest':
         return new Date(a.date).getTime() - new Date(b.date).getTime();
       default: // Newest
         return new Date(b.date).getTime() - new Date(a.date).getTime();
     }
   });
+
+  // Quick refresh function
+  const handleRefresh = () => {
+    fetchIssues(true);
+  };
   
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       
       <div className="pt-28 pb-20 flex-1">
-        {/* Header */}
+        {/* Enhanced Header with Stats */}
         <div className="container mx-auto px-4 md:px-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
             <div>
               <h1 className="text-3xl font-semibold mb-2">Community Issues</h1>
-              <p className="text-muted-foreground">Browse and discover issues in your neighborhood</p>
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span>Browse and discover issues in your neighborhood</span>
+                {totalIssues > 0 && (
+                  <>
+                    <span>•</span>
+                    <span className="font-medium">{totalIssues} total issues</span>
+                    <span>•</span>
+                    <span className="font-medium">{filteredIssues.length} showing</span>
+                  </>
+                )}
+              </div>
             </div>
             <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex-shrink-0"
+              >
+                <div className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`}>
+                  <Loader2 className="h-4 w-4" />
+                </div>
+                {refreshing ? 'Refreshing...' : 'Refresh'}
+              </Button>
               <Button 
                 variant="outline" 
                 className="flex-shrink-0"
@@ -264,6 +404,9 @@ const Issues = () => {
               >
                 <SlidersHorizontal className="h-4 w-4 mr-2" />
                 Filters
+                {(selectedCategory !== 'All' || selectedStatus !== 'All' || searchQuery) && (
+                  <span className="ml-1 bg-primary text-primary-foreground text-xs rounded-full w-2 h-2"></span>
+                )}
               </Button>
               <Button 
                 onClick={handleReportIssue}
@@ -275,6 +418,44 @@ const Issues = () => {
               </Button>
             </div>
           </div>
+
+          {/* Quick Stats Cards */}
+          {!loading && issues.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {issues.filter(i => i.status === 'reported').length}
+                  </div>
+                  <div className="text-sm text-blue-700 font-medium">New Reports</div>
+                </div>
+              </div>
+              <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg p-4 border border-orange-200">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {issues.filter(i => i.status === 'in_progress').length}
+                  </div>
+                  <div className="text-sm text-orange-700 font-medium">In Progress</div>
+                </div>
+              </div>
+              <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {issues.filter(i => i.status === 'resolved').length}
+                  </div>
+                  <div className="text-sm text-green-700 font-medium">Resolved</div>
+                </div>
+              </div>
+              <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {issues.reduce((sum, issue) => sum + issue.volunteersCount, 0)}
+                  </div>
+                  <div className="text-sm text-purple-700 font-medium">Total Volunteers</div>
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Search and Filter */}
           <div className="bg-card rounded-xl shadow-subtle p-5 mb-8">
@@ -290,43 +471,124 @@ const Issues = () => {
             </div>
             
             {isFilterExpanded && (
-              <div className="mt-4 pt-4 border-t border-border/30 grid grid-cols-1 md:grid-cols-2 gap-4 animate-slide-down">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Category</label>
-                  <div className="flex flex-wrap gap-2">
-                    {categories.map(category => (
-                      <button
-                        key={category}
-                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                          selectedCategory === category
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                        }`}
-                        onClick={() => setSelectedCategory(category)}
-                      >
-                        {category}
-                      </button>
-                    ))}
+              <div className="mt-4 pt-4 border-t border-border/30 space-y-4 animate-slide-down">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Category</label>
+                    <div className="flex flex-wrap gap-2">
+                      {categories.map(category => (
+                        <button
+                          key={category}
+                          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                            selectedCategory === category
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                          }`}
+                          onClick={() => setSelectedCategory(category)}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Status</label>
+                    <div className="flex flex-wrap gap-2">
+                      {statusOptions.map(status => (
+                        <button
+                          key={status}
+                          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                            selectedStatus === status
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                          }`}
+                          onClick={() => setSelectedStatus(status)}
+                        >
+                          {status === 'All' ? 'All' : 
+                           status === 'reported' ? 'New' :
+                           status === 'in_progress' ? 'In Progress' :
+                           status === 'resolved' ? 'Resolved' :
+                           status === 'closed' ? 'Closed' : status}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Sort By</label>
+                    <div className="flex flex-wrap gap-2">
+                      {sortOptions.map(option => (
+                        <button
+                          key={option}
+                          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                            sortBy === option
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                          }`}
+                          onClick={() => setSortBy(option)}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Sort By</label>
-                  <div className="flex flex-wrap gap-2">
-                    {sortOptions.map(option => (
-                      <button
-                        key={option}
-                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                          sortBy === option
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                        }`}
-                        onClick={() => setSortBy(option)}
-                      >
-                        {option}
-                      </button>
-                    ))}
+
+                {/* Active Filters Summary */}
+                {(selectedCategory !== 'All' || selectedStatus !== 'All' || searchQuery) && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-border/20">
+                    <span className="text-sm text-muted-foreground">Active filters:</span>
+                    {selectedCategory !== 'All' && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-100 text-blue-800 text-xs">
+                        Category: {selectedCategory}
+                        <button 
+                          onClick={() => setSelectedCategory('All')}
+                          className="ml-1 hover:text-blue-600"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    )}
+                    {selectedStatus !== 'All' && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-md bg-green-100 text-green-800 text-xs">
+                        Status: {selectedStatus === 'reported' ? 'New' : 
+                                selectedStatus === 'in_progress' ? 'In Progress' :
+                                selectedStatus === 'resolved' ? 'Resolved' :
+                                selectedStatus === 'closed' ? 'Closed' : selectedStatus}
+                        <button 
+                          onClick={() => setSelectedStatus('All')}
+                          className="ml-1 hover:text-green-600"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    )}
+                    {searchQuery && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-md bg-purple-100 text-purple-800 text-xs">
+                        Search: "{searchQuery}"
+                        <button 
+                          onClick={() => setSearchQuery('')}
+                          className="ml-1 hover:text-purple-600"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    )}
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        setSelectedCategory('All');
+                        setSelectedStatus('All');
+                        setSearchQuery('');
+                      }}
+                      className="text-xs h-6"
+                    >
+                      Clear all
+                    </Button>
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>
@@ -356,30 +618,50 @@ const Issues = () => {
                 <div className="col-span-full py-16 text-center">
                   <div className="max-w-md mx-auto">
                     <Filter className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-xl font-semibold mb-2">No issues found</h3>
+                    <h3 className="text-xl font-semibold mb-2">
+                      {issues.length === 0 ? "No issues reported yet" : "No matching issues"}
+                    </h3>
                     <p className="text-muted-foreground mb-6">
                       {issues.length === 0 
-                        ? "No issues have been reported yet. Be the first to report a community issue!"
-                        : "We couldn't find any issues matching your search criteria. Try adjusting your filters or search query."
+                        ? "Your community is looking great! Be the first to report an issue and help make it even better."
+                        : `We couldn't find any issues matching your criteria. ${
+                            selectedCategory !== 'All' || selectedStatus !== 'All' || searchQuery
+                              ? "Try adjusting your filters or search query."
+                              : "Try a different search term."
+                          }`
                       }
                     </p>
-                    <div className="flex gap-3 justify-center">
-                      {issues.length > 0 && (
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      {issues.length > 0 && (selectedCategory !== 'All' || selectedStatus !== 'All' || searchQuery) && (
                         <Button 
                           variant="outline" 
                           onClick={() => {
                             setSearchQuery('');
                             setSelectedCategory('All');
+                            setSelectedStatus('All');
                           }}
                         >
-                          Clear Filters
+                          Clear All Filters
                         </Button>
                       )}
                       <Button onClick={handleReportIssue}>
                         <Plus className="h-4 w-4 mr-2" />
-                        Report Issue
+                        {issues.length === 0 ? "Report First Issue" : "Report New Issue"}
                       </Button>
                     </div>
+                    
+                    {/* Helpful suggestions */}
+                    {issues.length > 0 && filteredIssues.length === 0 && (
+                      <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <h4 className="font-medium text-blue-900 mb-2">Suggestions:</h4>
+                        <ul className="text-sm text-blue-700 space-y-1">
+                          <li>• Try searching with different keywords</li>
+                          <li>• Check if you've selected the right category</li>
+                          <li>• Consider browsing all statuses</li>
+                          <li>• Use broader search terms</li>
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
