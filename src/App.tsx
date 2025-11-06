@@ -5,8 +5,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/SupabaseAuthContext";
+import { LocationProvider, useLocation } from "./contexts/LocationContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LoadingSpinner from "./components/LoadingSpinner";
+import LocationPermissionModal from "./components/LocationPermissionModal";
 import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import UserHomepage from "./pages/UserHomepage";
@@ -92,6 +94,7 @@ const SafeRoute = ({ children }: { children: React.ReactNode }) => {
 // AppRoutes component to handle routing after auth context is loaded
 const AppRoutes = () => {
   const { loading } = useAuth();
+  const { showLocationModal, setShowLocationModal, updateUserLocation } = useLocation();
 
   // Add a timeout fallback for loading state
   const [showFallback, setShowFallback] = React.useState(false);
@@ -105,6 +108,14 @@ const AppRoutes = () => {
 
     return () => clearTimeout(timer);
   }, [loading]);
+
+  // Handle location permission granted
+  const handleLocationGranted = (location: { lat: number; lng: number; address: string }) => {
+    updateUserLocation({
+      ...location,
+      timestamp: Date.now()
+    });
+  };
 
   // If loading for too long, show fallback
   if (loading && showFallback) {
@@ -165,6 +176,13 @@ const AppRoutes = () => {
         <Route path="/auth/callback" element={<SafeRoute><AuthCallback /></SafeRoute>} />
         <Route path="*" element={<SafeRoute><NotFound /></SafeRoute>} />
       </Routes>
+      
+      {/* Location Permission Modal */}
+      <LocationPermissionModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        onLocationGranted={handleLocationGranted}
+      />
     </BrowserRouter>
   );
 };
@@ -211,9 +229,11 @@ const App = () => {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AuthProvider>
-            <Toaster />
-            <Sonner />
-            <AppRoutes />
+            <LocationProvider>
+              <Toaster />
+              <Sonner />
+              <AppRoutes />
+            </LocationProvider>
           </AuthProvider>
         </TooltipProvider>
       </QueryClientProvider>

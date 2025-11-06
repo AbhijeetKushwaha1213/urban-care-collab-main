@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
+import { useLocation } from '@/contexts/LocationContext';
 
 interface LocationPickerProps {
   value: string;
@@ -21,61 +22,61 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
+  
+  // Use location context
+  const { userLocation, isLocationAvailable, requestLocationUpdate } = useLocation();
+
+  // Auto-fill location if available and field is empty
+  useEffect(() => {
+    if (isLocationAvailable && userLocation && !value) {
+      onChange(userLocation.address, { lat: userLocation.lat, lng: userLocation.lng });
+    }
+  }, [isLocationAvailable, userLocation, value, onChange]);
 
   // Get current location
-  const getCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      toast({
-        title: "Geolocation Not Supported",
-        description: "Your browser doesn't support location detection. Please enter manually or use the map.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const getCurrentLocation = async () => {
     setIsLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const coords = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        };
-        reverseGeocode(coords);
-        setIsLoading(false);
+    
+    try {
+      // First try to use saved location if available and recent
+      if (isLocationAvailable && userLocation) {
+        const isLocationFresh = Date.now() - userLocation.timestamp < 5 * 60 * 1000; // 5 minutes
+        if (isLocationFresh) {
+          onChange(userLocation.address, { lat: userLocation.lat, lng: userLocation.lng });
+          toast({
+            title: "Location Retrieved",
+            description: "Using your saved location.",
+          });
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Request fresh location update
+      const location = await requestLocationUpdate();
+      if (location) {
+        onChange(location.address, { lat: location.lat, lng: location.lng });
         toast({
-          title: "Location Detected",
+          title: "Location Updated",
           description: "Your current location has been detected successfully!",
         });
-      },
-      (error) => {
-        console.error('Geolocation error:', error);
-        let errorMessage = "Unable to detect your location. Please enter manually or use the map.";
-        
-        switch(error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = "Location access denied. Please enable location permissions in your browser settings and try again.";
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = "Location information unavailable. Please check your internet connection and try again.";
-            break;
-          case error.TIMEOUT:
-            errorMessage = "Location request timed out. Please try again or enter location manually.";
-            break;
-        }
-        
+      } else {
         toast({
           title: "Location Error",
-          description: errorMessage,
+          description: "Unable to detect your location. Please enter manually or use the map.",
           variant: "destructive",
         });
-        setIsLoading(false);
-      },
-      { 
-        enableHighAccuracy: true, 
-        timeout: 15000, // Increased timeout
-        maximumAge: 300000 // Cache location for 5 minutes
       }
-    );
+    } catch (error) {
+      console.error('Location error:', error);
+      toast({
+        title: "Location Error",
+        description: "Unable to detect your location. Please enter manually or use the map.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Reverse geocode coordinates to address
@@ -124,68 +125,160 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
 
   // Initialize map
   const initializeMap = () => {
-    if (!mapRef.current || mapInstanceRef.current) return;
+    console.log('Initializing map with new layout...');
+    
+    if (!mapRef.current) {
+      console.error('Map container not found');
+      return;
+    }
 
-    // Default to user's approximate location or city center
-    const defaultCenter = { lat: 40.7128, lng: -74.0060 }; // NYC
+    if (mapInstanceRef.current) {
+      console.log('Map already exists, cleaning up...');
+      mapInstanceRef.current = null;
+    }
 
-    const map = new google.maps.Map(mapRef.current, {
-      center: defaultCenter,
-      zoom: 15,
-      styles: [
-        {
-          featureType: 'poi',
-          elementType: 'labels',
-          stylers: [{ visibility: 'off' }]
-        }
-      ]
-    });
+    if (!window.google || !window.google.maps) {
+      console.error('Google Maps API not loaded');
+      return;
+    }
 
-    mapInstanceRef.current = map;
-
-    // Add click listener to map
-    map.addListener('click', (event: google.maps.MapMouseEvent) => {
-      const coords = {
-        lat: event.latLng!.lat(),
-        lng: event.latLng!.lng()
-      };
+    try {
+      console.log('Creating Google Maps instance...');
       
-      setSelectedCoords(coords);
+      // Default to India center
+      const defaultCenter = { lat: 20.5937, lng: 78.9629 };
       
-      // Remove existing marker
-      if (markerRef.current) {
-        markerRef.current.setMap(null);
-      }
-      
-      // Add new marker
-      const marker = new google.maps.Marker({
-        position: coords,
-        map: map,
-        title: 'Selected Location',
-        animation: google.maps.Animation.DROP
+      const map = new window.google.maps.Map(mapRef.current, {
+        center: defaultCenter,
+        zoom: 6,
+        mapTypeControl: true,
+        streetViewControl: false,
+        fullscreenControl: false,
+        zoomControl: true,
+        gestureHandling: 'cooperative'
       });
-      
-      markerRef.current = marker;
-      
-      // Get address for selected location
-      reverseGeocodeForMap(coords);
-    });
 
-    // Try to get user's current location for map center
-    navigator.geolocation?.getCurrentPosition(
-      (position) => {
-        const userLocation = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
+      mapInstanceRef.current = map;
+      console.log('Map created successfully!');
+
+      // Add click listener for map
+      map.addListener('click', (event: google.maps.MapMouseEvent) => {
+        if (!event.latLng) return;
+        
+        const coords = {
+          lat: event.latLng.lat(),
+          lng: event.latLng.lng()
         };
-        map.setCenter(userLocation);
-        map.setZoom(16);
-      },
-      () => {
-        // Fallback to default location if geolocation fails
-        console.log('Using default map center');
+        
+        console.log('Map clicked at:', coords);
+        setSelectedCoords(coords);
+        
+        // Remove existing marker
+        if (markerRef.current) {
+          markerRef.current.setMap(null);
+        }
+        
+        // Add new marker with custom icon
+        const marker = new window.google.maps.Marker({
+          position: coords,
+          map: map,
+          title: 'Selected Location',
+          animation: window.google.maps.Animation.DROP
+        });
+        
+        markerRef.current = marker;
+        
+        // Get address for coordinates
+        reverseGeocodeForMap(coords);
+        
+        toast({
+          title: "Location Selected",
+          description: "Scroll down to save this location.",
+        });
+      });
+
+      // Set up search functionality
+      setTimeout(() => {
+        const searchInput = document.getElementById('map-search-input') as HTMLInputElement;
+        if (searchInput && window.google.maps.places) {
+          console.log('Setting up search functionality...');
+          
+          const searchBox = new window.google.maps.places.SearchBox(searchInput);
+
+          // Bias results to map viewport
+          map.addListener('bounds_changed', () => {
+            searchBox.setBounds(map.getBounds() as google.maps.LatLngBounds);
+          });
+
+          // Handle place selection
+          searchBox.addListener('places_changed', () => {
+            const places = searchBox.getPlaces();
+            if (!places || places.length === 0) return;
+
+            const place = places[0];
+            if (!place.geometry || !place.geometry.location) return;
+
+            const coords = {
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng()
+            };
+
+            console.log('Place selected:', place.name, coords);
+            setSelectedCoords(coords);
+
+            // Remove existing marker
+            if (markerRef.current) {
+              markerRef.current.setMap(null);
+            }
+
+            // Add marker for searched place
+            const marker = new window.google.maps.Marker({
+              position: coords,
+              map: map,
+              title: place.name || 'Selected Location',
+              animation: window.google.maps.Animation.DROP
+            });
+
+            markerRef.current = marker;
+
+            // Set address
+            const address = place.formatted_address || place.name || `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
+            setMapAddress(address);
+
+            // Center map on place
+            map.setCenter(coords);
+            map.setZoom(15);
+
+            // Clear search input
+            searchInput.value = '';
+
+            toast({
+              title: "Location Found",
+              description: `Selected: ${place.name || 'Location'}. Scroll down to save.`,
+            });
+          });
+          
+          console.log('Search functionality set up successfully!');
+        } else {
+          console.warn('Search input not found or Places API not available');
+        }
+      }, 500);
+
+      // Try to center on user location if available
+      if (isLocationAvailable && userLocation) {
+        console.log('Centering map on user location');
+        map.setCenter({ lat: userLocation.lat, lng: userLocation.lng });
+        map.setZoom(15);
       }
-    );
+
+    } catch (error) {
+      console.error('Error creating map:', error);
+      toast({
+        title: "Map Error",
+        description: "Failed to create map. Please refresh and try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Reverse geocode for map selection
@@ -210,29 +303,83 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
 
   // Load Google Maps script
   useEffect(() => {
-    if (isMapOpen && !window.google) {
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-      script.async = true;
-      script.defer = true;
-      script.onload = initializeMap;
-      document.head.appendChild(script);
-    } else if (isMapOpen && window.google) {
-      setTimeout(initializeMap, 100);
+    if (!isMapOpen) return;
+
+    console.log('Map modal opened, checking Google Maps API...');
+
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.error('Google Maps API key not found');
+      toast({
+        title: "Configuration Error",
+        description: "Google Maps API key is missing. Please check your environment variables.",
+        variant: "destructive",
+      });
+      return;
     }
+
+    if (window.google && window.google.maps && window.google.maps.places) {
+      console.log('Google Maps API already loaded');
+      setTimeout(initializeMap, 100);
+      return;
+    }
+
+    console.log('Loading Google Maps API...');
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=initMap`;
+    script.async = true;
+    script.defer = true;
+
+    // Create global callback
+    (window as any).initMap = () => {
+      console.log('Google Maps API loaded via callback');
+      setTimeout(initializeMap, 100);
+    };
+
+    script.onerror = (error) => {
+      console.error('Failed to load Google Maps API:', error);
+      toast({
+        title: "Map Loading Error",
+        description: "Failed to load Google Maps. Please check your internet connection.",
+        variant: "destructive",
+      });
+    };
+
+    document.head.appendChild(script);
+
+    // Cleanup
+    return () => {
+      if ((window as any).initMap) {
+        delete (window as any).initMap;
+      }
+    };
   }, [isMapOpen]);
 
   // Confirm map selection
   const confirmMapSelection = () => {
     if (selectedCoords && mapAddress) {
       onChange(mapAddress, selectedCoords);
+      toast({
+        title: "Location Saved",
+        description: "Selected location has been saved successfully!",
+      });
+      setIsMapOpen(false);
+      setSelectedCoords(null);
+      setMapAddress('');
+    } else if (selectedCoords && !mapAddress) {
+      // If we have coordinates but no address yet, use coordinates
+      const coordsString = `${selectedCoords.lat.toFixed(6)}, ${selectedCoords.lng.toFixed(6)}`;
+      onChange(coordsString, selectedCoords);
+      toast({
+        title: "Location Saved",
+        description: "Selected coordinates have been saved successfully!",
+      });
       setIsMapOpen(false);
       setSelectedCoords(null);
       setMapAddress('');
     } else {
       toast({
         title: "No Location Selected",
-        description: "Please click on the map to select a location.",
+        description: "Please click on the map or search for a location first.",
         variant: "destructive",
       });
     }
@@ -240,12 +387,20 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
 
   return (
     <div className="space-y-2">
+      {/* Auto-location indicator */}
+      {isLocationAvailable && userLocation && value === userLocation.address && (
+        <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-1 rounded">
+          <MapPin className="h-4 w-4" />
+          <span>Using your current location</span>
+        </div>
+      )}
+      
       <div className="flex gap-2">
         <div className="flex-1">
           <Input
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder || "Enter location or use GPS/Map"}
+            placeholder={placeholder || (isLocationAvailable ? "Auto-detected location or enter manually" : "Enter location or use GPS/Map")}
             className="pr-20"
           />
         </div>
@@ -280,59 +435,133 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
 
       {/* Map Modal */}
       <Dialog open={isMapOpen} onOpenChange={setIsMapOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Select Issue Location
-            </DialogTitle>
-            <DialogDescription>
-              Click on the map to pinpoint the exact location of the issue.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Click on the map to pinpoint the exact location of the issue.
-            </p>
-            
-            {/* Map Container */}
-            <div 
-              ref={mapRef} 
-              className="w-full h-96 rounded-lg border border-gray-300"
-              style={{ minHeight: '400px' }}
-            />
+        <DialogContent className="max-w-5xl w-[95vw] h-[85vh] p-0 overflow-hidden">
+          {/* Header - Fixed at top */}
+          <div className="flex items-center justify-between p-4 border-b bg-white">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Select Issue Location
+              </h2>
+              <p className="text-sm text-gray-600">
+                Search for a location or click on the map to select
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setIsMapOpen(false);
+                setSelectedCoords(null);
+                setMapAddress('');
+              }}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Scrollable Content Area */}
+          <div className="flex flex-col h-full overflow-y-auto">
+            {/* Map Container - Fixed height */}
+            <div className="relative">
+              <div 
+                ref={mapRef} 
+                className="w-full h-[400px] bg-gray-100"
+                style={{ minHeight: '400px' }}
+              />
+              
+              {/* Search Box - Positioned over map */}
+              <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-10">
+                <input
+                  type="text"
+                  placeholder="Search for a location..."
+                  className="w-80 px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  id="map-search-input"
+                />
+              </div>
+            </div>
             
             {/* Selected Location Display */}
-            {selectedCoords && (
-              <div className="bg-blue-50 p-3 rounded-lg">
-                <p className="text-sm font-medium text-blue-800 mb-1">Selected Location:</p>
-                <p className="text-sm text-blue-700">{mapAddress}</p>
-                <p className="text-xs text-blue-600">
-                  Coordinates: {selectedCoords.lat.toFixed(6)}, {selectedCoords.lng.toFixed(6)}
-                </p>
-              </div>
-            )}
+            <div className="p-4 bg-gray-50">
+              {selectedCoords ? (
+                <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MapPin className="h-5 w-5 text-green-600" />
+                    <p className="font-medium text-green-800">Location Selected!</p>
+                  </div>
+                  <p className="text-green-700 mb-1">{mapAddress || 'Getting address...'}</p>
+                  <p className="text-sm text-green-600">
+                    Coordinates: {selectedCoords.lat.toFixed(6)}, {selectedCoords.lng.toFixed(6)}
+                  </p>
+                  <p className="text-sm text-green-500 mt-2">
+                    ✓ Scroll down to save this location
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 p-4 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MapPin className="h-5 w-5 text-gray-400" />
+                    <p className="font-medium text-gray-600">No Location Selected</p>
+                  </div>
+                  <p className="text-gray-500">
+                    Search for a location above or click anywhere on the map to select it
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Instructions */}
+            <div className="p-4 bg-blue-50 border-t">
+              <h3 className="font-medium text-blue-800 mb-2">How to select a location:</h3>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• <strong>Search:</strong> Type a location name in the search box above the map</li>
+                <li>• <strong>Click:</strong> Click anywhere on the map to place a marker</li>
+                <li>• <strong>Navigate:</strong> Use zoom controls to find the exact spot</li>
+              </ul>
+            </div>
             
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsMapOpen(false);
-                  setSelectedCoords(null);
-                  setMapAddress('');
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={confirmMapSelection}
-                disabled={!selectedCoords}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                Confirm Location
-              </Button>
+            {/* Action Buttons - At bottom with scroll */}
+            <div className="p-4 bg-white border-t sticky bottom-0">
+              <div className="flex justify-between items-center gap-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsMapOpen(false);
+                    setSelectedCoords(null);
+                    setMapAddress('');
+                  }}
+                  className="px-8"
+                >
+                  Cancel
+                </Button>
+                
+                <div className="flex items-center gap-3">
+                  {selectedCoords && (
+                    <div className="text-sm text-green-600 flex items-center gap-2">
+                      <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
+                      Ready to save
+                    </div>
+                  )}
+                  <Button
+                    onClick={confirmMapSelection}
+                    disabled={!selectedCoords}
+                    className={`px-8 ${
+                      selectedCoords 
+                        ? 'bg-green-600 hover:bg-green-700 shadow-lg' 
+                        : 'bg-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    {selectedCoords ? (
+                      <>
+                        <MapPin className="h-4 w-4 mr-2" />
+                        Save Location
+                      </>
+                    ) : (
+                      'Select Location First'
+                    )}
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </DialogContent>

@@ -4,17 +4,22 @@
 .env.test.local
 .env.production.local
 
-# Documentation
+# Documentation and guides
 docs/
 *.md
 !README.md
 
-# Scripts
+# Scripts that might be mistaken for functions
 scripts/
+*.js
+!vite.config.js
+!tailwind.config.js
+!postcss.config.js
 
 # IDE files
 .vscode/
 .idea/
+.kiro/
 
 # OS files
 .DS_Store
@@ -29,19 +34,20 @@ test/
 __tests__/
 *.test.*
 *.spec.*
+test-*.js
+test-*.ts
 
-# Migration files
+# Migration and setup files
 *.sql
+setup-*.js
+run-*.js
+simple-*.js
 
 # Temporary files
 tmp/
 temp/
 
-# Node modules (already ignored by default)
-node_modules/
-
-# Build artifacts
-dist/
+# Build artifacts (keep dist for deployment)
 build/
 
 # Cache
@@ -56,5 +62,8 @@ coverage/
 .storybook/
 storybook-static/
 
-# Kiro IDE specs
-.kiro/
+# Any potential function-like files
+api/
+functions/
+lambda/
+netlify/
