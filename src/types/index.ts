@@ -3,23 +3,10 @@ export interface User {
   id: string;
   email: string;
   full_name: string;
-  user_type: 'citizen' | 'authority' | 'worker';
+  user_type: 'citizen' | 'authority';
   department?: string;
-  employee_id?: string;
-  phone_number?: string;
   created_at: string;
   is_onboarding_complete: boolean;
-}
-
-export interface Worker {
-  id: string;
-  employee_id: string;
-  full_name: string;
-  phone_number: string;
-  department: string;
-  user_id: string;
-  is_active: boolean;
-  created_at: string;
 }
 
 export interface Issue {
@@ -81,10 +68,7 @@ export type IssueCategory =
 
 export type IssueStatus = 
   | 'reported' 
-  | 'assigned'
   | 'in_progress' 
-  | 'completed_by_worker'
-  | 'pending_review'
   | 'resolved' 
   | 'closed';
 
@@ -100,7 +84,7 @@ export type EventStatus =
   | 'completed' 
   | 'cancelled';
 
-export type UserType = 'citizen' | 'authority' | 'worker';
+export type UserType = 'citizen' | 'authority';
 
 // API Response types
 export interface ApiResponse<T> {
@@ -221,44 +205,4 @@ export interface IssueAssignment {
   department: string;
   assigned_at: string;
   notes?: string;
-}
-
-// Worker specific types
-export interface WorkerTask {
-  id: string;
-  issue_id: string;
-  worker_id: string;
-  title: string;
-  description: string;
-  location: string;
-  category: IssueCategory;
-  priority: IssueUrgency;
-  status: 'pending' | 'in_progress' | 'completed';
-  assigned_at: string;
-  started_at?: string;
-  completed_at?: string;
-  before_image?: string;
-  after_image?: string;
-  worker_notes?: string;
-  coordinates?: {
-    lat: number;
-    lng: number;
-  };
-}
-
-export interface WorkerDashboardStats {
-  pendingTasks: number;
-  completedTasks: number;
-  inProgressTasks: number;
-  todayTasks: number;
-}
-
-export interface WorkerLoginForm {
-  employee_id: string;
-  password: string;
-}
-
-export interface WorkerOTPForm {
-  phone_number: string;
-  otp?: string;
 }

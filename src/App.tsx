@@ -22,14 +22,6 @@ import UserOnboarding from "./pages/UserOnboarding";
 import EventDetail from "./pages/EventDetail";
 import AuthorityDashboard from "./pages/AuthorityDashboard";
 import AuthCallback from "./pages/AuthCallback";
-import WorkerDashboard from "./pages/WorkerDashboard";
-import WorkerTaskDetail from "./pages/WorkerTaskDetail";
-import WorkerTaskComplete from "./pages/WorkerTaskComplete";
-import SmartDashboard from "./components/SmartDashboard";
-import SimpleWorkerTest from "./pages/SimpleWorkerTest";
-
-// Import debug functions for browser console
-import './debug/fix-user-profiles';
 
 const queryClient = new QueryClient();
 
@@ -59,7 +51,7 @@ const OnboardingRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/" replace />;
   }
   
-  // If not a new user, redirect to smart dashboard
+  // If not a new user, redirect to dashboard
   if (!isNewUser) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -151,7 +143,7 @@ const AppRoutes = () => {
         <Route path="/dashboard" element={
           <SafeRoute>
             <ProtectedRoute>
-              <SmartDashboard />
+              <UserHomepage />
             </ProtectedRoute>
           </SafeRoute>
         } />
@@ -182,13 +174,6 @@ const AppRoutes = () => {
         <Route path="/events/:id" element={<SafeRoute><EventDetail /></SafeRoute>} />
         <Route path="/authority-dashboard" element={<SafeRoute><AuthorityDashboard /></SafeRoute>} />
         <Route path="/auth/callback" element={<SafeRoute><AuthCallback /></SafeRoute>} />
-        
-        {/* Worker Routes */}
-        <Route path="/worker/dashboard" element={<SafeRoute><WorkerDashboard /></SafeRoute>} />
-        <Route path="/worker/test" element={<SimpleWorkerTest />} />
-        <Route path="/worker/task/:taskId" element={<SafeRoute><ProtectedRoute><WorkerTaskDetail /></ProtectedRoute></SafeRoute>} />
-        <Route path="/worker/task/:taskId/complete" element={<SafeRoute><ProtectedRoute><WorkerTaskComplete /></ProtectedRoute></SafeRoute>} />
-        
         <Route path="*" element={<SafeRoute><NotFound /></SafeRoute>} />
       </Routes>
       

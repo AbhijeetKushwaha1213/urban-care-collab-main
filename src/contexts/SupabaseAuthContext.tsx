@@ -35,7 +35,6 @@ interface AuthContextType {
   // Utility methods
   isAuthority: () => boolean
   isCitizen: () => boolean
-  isWorker: () => boolean
   hasPermission: (permission: string) => boolean
 }
 
@@ -72,19 +71,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Load user profile
   const loadUserProfile = useCallback(async (userId: string) => {
     try {
-      console.log('Loading user profile for userId:', userId);
       const profile = await userService.getProfile(userId)
-      console.log('Loaded user profile:', profile);
       setUserProfile(profile)
       
       if (!profile) {
-        console.log('No profile found, setting as new user');
         setIsNewUser(true)
       } else if (!profile.is_onboarding_complete) {
-        console.log('Profile found but onboarding not complete, setting as new user');
         setIsNewUser(true)
       } else {
-        console.log('Profile found and onboarding complete, user type:', profile.user_type);
         setIsNewUser(false)
       }
     } catch (error) {
@@ -176,8 +170,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: data.user.email || email,
             full_name: name,
             user_type: userType,
-            department: (userType === 'authority' || userType === 'worker') ? department : undefined,
-            is_onboarding_complete: userType === 'worker' ? true : false, // Workers don't need onboarding
+            department: userType === 'authority' ? department : undefined,
+            is_onboarding_complete: false,
           })
           
           setUserProfile(profile)
@@ -362,7 +356,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Utility methods
   const isAuthority = () => userProfile?.user_type === 'authority'
   const isCitizen = () => userProfile?.user_type === 'citizen'
-  const isWorker = () => userProfile?.user_type === 'worker'
   
   const hasPermission = (permission: string) => {
     if (!userProfile) return false
@@ -405,7 +398,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Utility methods
     isAuthority,
     isCitizen,
-    isWorker,
     hasPermission,
   }
 

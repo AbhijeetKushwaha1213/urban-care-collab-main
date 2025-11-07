@@ -107,19 +107,6 @@ export default function AuthorityDashboard() {
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [assignmentNotes, setAssignmentNotes] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
-  
-  // Enhanced analytics state
-  const [analyticsData, setAnalyticsData] = useState({
-    weeklyTrends: [],
-    categoryStats: [],
-    performanceMetrics: {
-      responseTime: 0,
-      resolutionRate: 0,
-      satisfactionScore: 0,
-      workloadDistribution: []
-    }
-  });
-  const [refreshingAnalytics, setRefreshingAnalytics] = useState(false);
 
   // Department list for assignment
   const departments = [
@@ -139,17 +126,13 @@ export default function AuthorityDashboard() {
   useEffect(() => {
     fetchDashboardData();
     fetchAuthorityProfile();
-    fetchAnalyticsData();
     
     // Auto-refresh every 30 seconds
-    const interval = setInterval(() => {
-      fetchDashboardData();
-      fetchAnalyticsData();
-    }, 30000);
+    const interval = setInterval(fetchDashboardData, 30000);
     
-    // Enhanced real-time subscription for all issue changes
+    // Real-time subscription for new issues
     const subscription = supabase
-      .channel('authority-dashboard-updates')
+      .channel('new-issues')
       .on('postgres_changes', 
         { 
           event: 'INSERT', 
@@ -164,46 +147,14 @@ export default function AuthorityDashboard() {
             // Add new issue to the list
             setIssues(prev => [newIssue, ...prev]);
             
-            // Update stats
-            setStats(prev => ({
-              ...prev,
-              totalReports: prev.totalReports + 1,
-              pendingIssues: prev.pendingIssues + 1
-            }));
-            
-            // Show notification for new issue with priority-based styling
-            const priority = getPriorityByCategory(newIssue.category);
+            // Show notification for new issue
             toast({
-              title: priority === 'critical' ? "🚨 CRITICAL Issue Reported" : "📢 New Issue Reported",
-              description: `${newIssue.title} - ${newIssue.category} (${newIssue.location})`,
-              variant: priority === 'critical' ? "destructive" : "default",
+              title: "🚨 New Issue Reported",
+              description: `${newIssue.title} - ${newIssue.category}`,
             });
             
             // Auto-assign critical issues
             autoAssignCriticalIssue(newIssue);
-          }
-        }
-      )
-      .on('postgres_changes', 
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'issues'
-        }, 
-        (payload) => {
-          console.log('Issue updated:', payload);
-          if (payload.new) {
-            const updatedIssue = payload.new as Issue;
-            
-            // Update issue in the list
-            setIssues(prev => prev.map(issue => 
-              issue.id === updatedIssue.id ? updatedIssue : issue
-            ));
-            
-            // Update stats if status changed
-            if (payload.old?.status !== updatedIssue.status) {
-              fetchDashboardData(); // Refresh stats
-            }
           }
         }
       )
@@ -289,129 +240,6 @@ export default function AuthorityDashboard() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Enhanced analytics data fetching
-  const fetchAnalyticsData = async () => {
-    try {
-      setRefreshingAnalytics(true);
-      
-      // Fetch weekly trends
-      const { data: weeklyData, error: weeklyError } = await supabase
-        .from('issues')
-        .select('created_at, status, category')
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-        .order('created_at', { ascending: true });
-
-      if (weeklyError) throw weeklyError;
-
-      // Process weekly trends
-      const weeklyTrends = processWeeklyTrends(weeklyData || []);
-      
-      // Fetch category statistics
-      const { data: categoryData, error: categoryError } = await supabase
-        .from('issues')
-        .select('category, status, created_at')
-        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
-
-      if (categoryError) throw categoryError;
-
-      const categoryStats = processCategoryStats(categoryData || []);
-      
-      // Calculate performance metrics
-      const performanceMetrics = calculatePerformanceMetrics(issues);
-
-      setAnalyticsData({
-        weeklyTrends,
-        categoryStats,
-        performanceMetrics
-      });
-
-    } catch (error) {
-      console.error('Error fetching analytics data:', error);
-    } finally {
-      setRefreshingAnalytics(false);
-    }
-  };
-
-  // Process weekly trends data
-  const processWeeklyTrends = (data: any[]) => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const trends = days.map(day => ({ day, reported: 0, resolved: 0 }));
-    
-    data.forEach(issue => {
-      const dayIndex = new Date(issue.created_at).getDay();
-      trends[dayIndex].reported++;
-      if (issue.status === 'resolved') {
-        trends[dayIndex].resolved++;
-      }
-    });
-    
-    return trends;
-  };
-
-  // Process category statistics
-  const processCategoryStats = (data: any[]) => {
-    const categoryMap = new Map();
-    
-    data.forEach(issue => {
-      const category = issue.category;
-      if (!categoryMap.has(category)) {
-        categoryMap.set(category, { total: 0, resolved: 0, pending: 0 });
-      }
-      
-      const stats = categoryMap.get(category);
-      stats.total++;
-      
-      if (issue.status === 'resolved') {
-        stats.resolved++;
-      } else if (issue.status === 'reported' || issue.status === 'in-progress') {
-        stats.pending++;
-      }
-    });
-    
-    return Array.from(categoryMap.entries()).map(([category, stats]) => ({
-      category,
-      ...stats,
-      resolutionRate: stats.total > 0 ? Math.round((stats.resolved / stats.total) * 100) : 0
-    }));
-  };
-
-  // Calculate performance metrics
-  const calculatePerformanceMetrics = (issuesData: Issue[]) => {
-    const resolvedIssues = issuesData.filter(issue => issue.status === 'resolved');
-    const totalIssues = issuesData.length;
-    
-    // Calculate average response time (mock calculation)
-    const avgResponseTime = resolvedIssues.length > 0 ? 
-      Math.round(Math.random() * 24 + 2) : 0; // 2-26 hours
-    
-    // Calculate resolution rate
-    const resolutionRate = totalIssues > 0 ? 
-      Math.round((resolvedIssues.length / totalIssues) * 100) : 0;
-    
-    // Calculate satisfaction score (mock)
-    const satisfactionScore = Math.round(Math.random() * 20 + 75); // 75-95%
-    
-    // Workload distribution by department
-    const workloadMap = new Map();
-    issuesData.forEach(issue => {
-      const dept = issue.department || 'Unassigned';
-      workloadMap.set(dept, (workloadMap.get(dept) || 0) + 1);
-    });
-    
-    const workloadDistribution = Array.from(workloadMap.entries()).map(([dept, count]) => ({
-      department: dept,
-      count,
-      percentage: Math.round((count / totalIssues) * 100)
-    }));
-
-    return {
-      responseTime: avgResponseTime,
-      resolutionRate,
-      satisfactionScore,
-      workloadDistribution
-    };
   };
 
   const getPriorityByCategory = (category: string): string => {
@@ -784,115 +612,61 @@ export default function AuthorityDashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Enhanced Stats Overview */}
+        {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 hover:shadow-lg transition-all duration-300">
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-blue-700">Total Reports</CardTitle>
-              <div className="relative">
-                <BarChart3 className="h-5 w-5 text-blue-600" />
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              </div>
+              <CardTitle className="text-sm font-medium">Total Reports</CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-blue-900 mb-1">{stats.totalReports}</div>
-              <p className="text-xs text-blue-600 flex items-center">
-                <TrendingUp className="h-3 w-3 mr-1" />
+              <div className="text-2xl font-bold">{stats.totalReports}</div>
+              <p className="text-xs text-muted-foreground flex items-center">
+                <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
                 +12% from last month
               </p>
             </CardContent>
-            <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-500 opacity-20"></div>
           </Card>
 
-          <Card className="relative overflow-hidden bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 hover:shadow-lg transition-all duration-300">
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-orange-700">Pending Issues</CardTitle>
-              <div className="relative">
-                <AlertTriangle className="h-5 w-5 text-orange-600" />
-                {stats.pendingIssues > 0 && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
-                )}
-              </div>
+              <CardTitle className="text-sm font-medium">Pending Issues</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-orange-900 mb-1">{stats.pendingIssues}</div>
-              <p className="text-xs text-orange-600">
-                {stats.pendingIssues > 10 ? 'High priority attention needed' : 'Manageable workload'}
+              <div className="text-2xl font-bold">{stats.pendingIssues}</div>
+              <p className="text-xs text-muted-foreground">
+                Requires immediate attention
               </p>
             </CardContent>
-            <div className="absolute bottom-0 left-0 w-full h-1 bg-orange-500 opacity-20"></div>
           </Card>
 
-          <Card className="relative overflow-hidden bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 hover:shadow-lg transition-all duration-300">
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-purple-700">In Progress</CardTitle>
-              <div className="relative">
-                <Activity className="h-5 w-5 text-purple-600" />
-                {stats.inProgress > 0 && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-                )}
-              </div>
+              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+              <Activity className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-purple-900 mb-1">{stats.inProgress}</div>
-              <p className="text-xs text-purple-600">
+              <div className="text-2xl font-bold">{stats.inProgress}</div>
+              <p className="text-xs text-muted-foreground">
                 Currently being addressed
               </p>
             </CardContent>
-            <div className="absolute bottom-0 left-0 w-full h-1 bg-purple-500 opacity-20"></div>
           </Card>
 
-          <Card className="relative overflow-hidden bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-lg transition-all duration-300">
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-green-700">Resolved Today</CardTitle>
-              <div className="relative">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                {stats.resolvedToday > 0 && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                )}
-              </div>
+              <CardTitle className="text-sm font-medium">Resolved Today</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-green-900 mb-1">{stats.resolvedToday}</div>
-              <p className="text-xs text-green-600 flex items-center">
-                <TrendingUp className="h-3 w-3 mr-1" />
+              <div className="text-2xl font-bold">{stats.resolvedToday}</div>
+              <p className="text-xs text-muted-foreground flex items-center">
+                <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
                 +8% from yesterday
               </p>
             </CardContent>
-            <div className="absolute bottom-0 left-0 w-full h-1 bg-green-500 opacity-20"></div>
           </Card>
-        </div>
-
-        {/* Quick Action Bar */}
-        <div className="bg-white rounded-lg shadow-sm border p-4 mb-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span>System Status: Online</span>
-              </div>
-              <div className="text-sm text-gray-600">
-                Last updated: {new Date().toLocaleTimeString()}
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge variant="outline" className="text-xs">
-                {issues.filter(i => i.priority === 'critical').length} Critical
-              </Badge>
-              <Badge variant="outline" className="text-xs">
-                {issues.filter(i => i.priority === 'high').length} High Priority
-              </Badge>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={fetchDashboardData}
-                className="gap-2"
-              >
-                <Activity className="h-4 w-4" />
-                Refresh
-              </Button>
-            </div>
-          </div>
         </div>
 
         {/* Main Dashboard Tabs */}
@@ -1044,269 +818,49 @@ export default function AuthorityDashboard() {
             </Card>
           </TabsContent>
 
-          {/* Enhanced Analytics Tab */}
+          {/* Analytics Tab */}
           <TabsContent value="analytics" className="space-y-6">
-            {/* Analytics Header */}
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
-                <p className="text-gray-600">Real-time insights and performance metrics</p>
-              </div>
-              <Button 
-                variant="outline" 
-                onClick={fetchAnalyticsData}
-                disabled={refreshingAnalytics}
-                className="gap-2"
-              >
-                {refreshingAnalytics ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                ) : (
-                  <Activity className="h-4 w-4" />
-                )}
-                Refresh Analytics
-              </Button>
-            </div>
-
-            {/* Enhanced Performance Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-blue-700">Avg Response Time</p>
-                      <p className="text-2xl font-bold text-blue-900">
-                        {analyticsData.performanceMetrics.responseTime}h
-                      </p>
-                      <p className="text-xs text-blue-600 flex items-center mt-1">
-                        <TrendingDown className="h-3 w-3 mr-1" />
-                        -15% from last week
-                      </p>
-                    </div>
-                    <Clock className="h-8 w-8 text-blue-600" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-green-700">Resolution Rate</p>
-                      <p className="text-2xl font-bold text-green-900">
-                        {analyticsData.performanceMetrics.resolutionRate}%
-                      </p>
-                      <p className="text-xs text-green-600 flex items-center mt-1">
-                        <TrendingUp className="h-3 w-3 mr-1" />
-                        +8% from last week
-                      </p>
-                    </div>
-                    <CheckCircle className="h-8 w-8 text-green-600" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-purple-700">Satisfaction Score</p>
-                      <p className="text-2xl font-bold text-purple-900">
-                        {analyticsData.performanceMetrics.satisfactionScore}%
-                      </p>
-                      <p className="text-xs text-purple-600 flex items-center mt-1">
-                        <TrendingUp className="h-3 w-3 mr-1" />
-                        +3% from last week
-                      </p>
-                    </div>
-                    <Users className="h-8 w-8 text-purple-600" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-orange-700">Active Issues</p>
-                      <p className="text-2xl font-bold text-orange-900">
-                        {stats.pendingIssues + stats.inProgress}
-                      </p>
-                      <p className="text-xs text-orange-600 flex items-center mt-1">
-                        <Activity className="h-3 w-3 mr-1" />
-                        Needs attention
-                      </p>
-                    </div>
-                    <AlertTriangle className="h-8 w-8 text-orange-600" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Charts and Detailed Analytics */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Weekly Trends */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-blue-600" />
-                    Weekly Trends
-                  </CardTitle>
-                  <p className="text-sm text-gray-600">Issues reported vs resolved this week</p>
+                  <CardTitle>Performance Metrics</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {analyticsData.weeklyTrends.map((day, index) => (
-                      <div key={day.day} className="flex items-center justify-between">
-                        <span className="text-sm font-medium w-12">{day.day}</span>
-                        <div className="flex-1 mx-4">
-                          <div className="flex gap-1">
-                            <div className="flex-1 bg-gray-200 rounded-full h-3 relative overflow-hidden">
-                              <div 
-                                className="bg-blue-500 h-full rounded-full transition-all duration-500"
-                                style={{ width: `${Math.min(100, (day.reported / Math.max(...analyticsData.weeklyTrends.map(d => d.reported), 1)) * 100)}%` }}
-                              ></div>
-                            </div>
-                            <div className="flex-1 bg-gray-200 rounded-full h-3 relative overflow-hidden">
-                              <div 
-                                className="bg-green-500 h-full rounded-full transition-all duration-500"
-                                style={{ width: `${Math.min(100, (day.resolved / Math.max(...analyticsData.weeklyTrends.map(d => d.resolved), 1)) * 100)}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-4 text-sm">
-                          <span className="text-blue-600 font-medium">{day.reported}</span>
-                          <span className="text-green-600 font-medium">{day.resolved}</span>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="flex justify-center gap-6 pt-2 text-xs">
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        <span>Reported</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                        <span>Resolved</span>
-                      </div>
-                    </div>
+                <CardContent className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Average Response Time</span>
+                    <span className="text-2xl font-bold text-blue-600">{stats.avgResponseTime}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Satisfaction Rate</span>
+                    <span className="text-2xl font-bold text-green-600">{stats.satisfactionRate}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Resolution Rate</span>
+                    <span className="text-2xl font-bold text-purple-600">78%</span>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Category Performance */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-green-600" />
-                    Category Performance
-                  </CardTitle>
-                  <p className="text-sm text-gray-600">Resolution rates by category (last 30 days)</p>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {analyticsData.categoryStats.slice(0, 6).map((category) => (
-                      <div key={category.category} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{category.category}</span>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="text-gray-600">{category.resolved}/{category.total}</span>
-                            <Badge 
-                              variant="outline" 
-                              className={`${
-                                category.resolutionRate >= 80 ? 'border-green-500 text-green-700' :
-                                category.resolutionRate >= 60 ? 'border-yellow-500 text-yellow-700' :
-                                'border-red-500 text-red-700'
-                              }`}
-                            >
-                              {category.resolutionRate}%
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className={`h-2 rounded-full transition-all duration-500 ${
-                              category.resolutionRate >= 80 ? 'bg-green-500' :
-                              category.resolutionRate >= 60 ? 'bg-yellow-500' :
-                              'bg-red-500'
-                            }`}
-                            style={{ width: `${category.resolutionRate}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Workload Distribution */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-purple-600" />
-                    Workload Distribution
-                  </CardTitle>
-                  <p className="text-sm text-gray-600">Issues assigned by department</p>
+                  <CardTitle>Category Breakdown</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {analyticsData.performanceMetrics.workloadDistribution.slice(0, 5).map((dept) => (
-                      <div key={dept.department} className="flex items-center justify-between">
-                        <span className="text-sm font-medium truncate flex-1">{dept.department}</span>
-                        <div className="flex items-center gap-2 ml-4">
-                          <div className="w-16 bg-gray-200 rounded-full h-2">
+                    {['Infrastructure', 'Water', 'Safety', 'Transportation', 'Other'].map((category, index) => (
+                      <div key={category} className="flex items-center justify-between">
+                        <span className="text-sm">{category}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-20 bg-gray-200 rounded-full h-2">
                             <div 
-                              className="bg-purple-500 h-2 rounded-full transition-all duration-500" 
-                              style={{ width: `${dept.percentage}%` }}
+                              className="bg-blue-600 h-2 rounded-full" 
+                              style={{ width: `${Math.max(20, 80 - index * 15)}%` }}
                             ></div>
                           </div>
-                          <span className="text-sm font-medium w-8 text-right">{dept.count}</span>
+                          <span className="text-sm font-medium">{Math.max(5, 25 - index * 4)}</span>
                         </div>
                       </div>
                     ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Performance Insights */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-blue-600" />
-                    Performance Insights
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                      <div className="flex items-center gap-2 text-green-800">
-                        <CheckCircle className="h-4 w-4" />
-                        <span className="font-medium text-sm">Excellent Response Time</span>
-                      </div>
-                      <p className="text-xs text-green-700 mt-1">
-                        Your team is responding 15% faster than last week
-                      </p>
-                    </div>
-                    
-                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="flex items-center gap-2 text-blue-800">
-                        <TrendingUp className="h-4 w-4" />
-                        <span className="font-medium text-sm">Resolution Rate Improving</span>
-                      </div>
-                      <p className="text-xs text-blue-700 mt-1">
-                        8% increase in successful resolutions this week
-                      </p>
-                    </div>
-                    
-                    <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                      <div className="flex items-center gap-2 text-orange-800">
-                        <AlertTriangle className="h-4 w-4" />
-                        <span className="font-medium text-sm">High Priority Queue</span>
-                      </div>
-                      <p className="text-xs text-orange-700 mt-1">
-                        {issues.filter(i => i.priority === 'critical' || i.priority === 'high').length} high-priority issues need attention
-                      </p>
-                    </div>
                   </div>
                 </CardContent>
               </Card>

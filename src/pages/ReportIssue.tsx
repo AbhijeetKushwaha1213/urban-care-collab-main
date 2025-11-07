@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectContent } from "@/components/ui/select";
-import { Upload, Camera, MapPin, CheckCircle, Loader2, FileText, Image as ImageIcon, X, Sparkles, Wand2, AlertTriangle } from "lucide-react";
+import { Upload, Camera, MapPin, CheckCircle, Loader2, FileText, Image as ImageIcon, X, Sparkles, Wand2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/SupabaseAuthContext";
 import { supabase } from "@/lib/supabase";
@@ -32,121 +32,14 @@ export default function ReportIssuePage() {
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const [duplicateResult, setDuplicateResult] = useState<DuplicateDetectionResult | null>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
-  
-  // Enhanced form state
-  const [formProgress, setFormProgress] = useState(0);
-  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
-  const [isDraftSaved, setIsDraftSaved] = useState(false);
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
 
-  // Auto-fetch user location and load draft
+  // Auto-fetch user location
   useEffect(() => {
-    // Load draft from localStorage
-    loadDraft();
-    
-    // Get user location
     navigator.geolocation?.getCurrentPosition(
-      (pos) => {
-        const locationString = `${pos.coords.latitude}, ${pos.coords.longitude}`;
-        setLocation(locationString);
-        setCoordinates({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      },
-      (error) => {
-        console.warn('Location access denied:', error);
-        setLocation("Location access denied - please enter manually");
-      }
+      (pos) => setLocation(`${pos.coords.latitude}, ${pos.coords.longitude}`),
+      () => setLocation("Unable to detect location")
     );
   }, []);
-
-  // Calculate form progress and validate
-  useEffect(() => {
-    calculateFormProgress();
-    validateForm();
-    saveDraft();
-  }, [description, category, location, photos]);
-
-  // Calculate form completion progress
-  const calculateFormProgress = () => {
-    let progress = 0;
-    const totalFields = 4; // description, category, location, photos
-    
-    if (description.trim()) progress += 25;
-    if (category) progress += 25;
-    if (location.trim()) progress += 25;
-    if (photos.length > 0) progress += 25;
-    
-    setFormProgress(progress);
-  };
-
-  // Enhanced form validation
-  const validateForm = () => {
-    const errors: {[key: string]: string} = {};
-    
-    if (!description.trim()) {
-      errors.description = "Description is required";
-    } else if (description.trim().length < 10) {
-      errors.description = "Description must be at least 10 characters";
-    }
-    
-    if (!category) {
-      errors.category = "Please select a category";
-    }
-    
-    if (!location.trim()) {
-      errors.location = "Location is required";
-    }
-    
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  // Save draft to localStorage
-  const saveDraft = () => {
-    if (description || category || location || photos.length > 0) {
-      const draft = {
-        description,
-        category,
-        location,
-        coordinates,
-        timestamp: Date.now()
-      };
-      localStorage.setItem('issue_draft', JSON.stringify(draft));
-      setIsDraftSaved(true);
-    }
-  };
-
-  // Load draft from localStorage
-  const loadDraft = () => {
-    try {
-      const draftStr = localStorage.getItem('issue_draft');
-      if (draftStr) {
-        const draft = JSON.parse(draftStr);
-        // Only load if draft is less than 24 hours old
-        if (Date.now() - draft.timestamp < 24 * 60 * 60 * 1000) {
-          setDescription(draft.description || '');
-          setCategory(draft.category || '');
-          setLocation(draft.location || '');
-          setCoordinates(draft.coordinates || null);
-          
-          toast({
-            title: "Draft restored",
-            description: "Your previous draft has been restored.",
-          });
-        } else {
-          // Clear old draft
-          localStorage.removeItem('issue_draft');
-        }
-      }
-    } catch (error) {
-      console.error('Error loading draft:', error);
-    }
-  };
-
-  // Clear draft
-  const clearDraft = () => {
-    localStorage.removeItem('issue_draft');
-    setIsDraftSaved(false);
-  };
 
   // Handle multiple photo uploads with AI analysis
   const handlePhotoChange = async (e, captureType = 'file') => {
@@ -472,52 +365,14 @@ export default function ReportIssuePage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-900 via-indigo-900 to-gray-900 text-white flex justify-center items-center p-6">
       <Card className="bg-white/10 border-none shadow-2xl w-full max-w-2xl p-6 rounded-3xl">
         <CardContent>
-          <motion.div
+          <motion.h1
             initial={{ opacity: 0, y: -30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1 }}
-            className="text-center mb-6"
+            className="text-3xl font-bold text-center mb-6"
           >
-            <h1 className="text-3xl font-bold mb-4">Report a Civic Issue</h1>
-            
-            {/* Progress Bar */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between text-sm text-gray-300 mb-2">
-                <span>Form Progress</span>
-                <span>{formProgress}% Complete</span>
-              </div>
-              <div className="w-full bg-gray-700 rounded-full h-2">
-                <div 
-                  className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${formProgress}%` }}
-                ></div>
-              </div>
-              {formProgress === 100 && (
-                <p className="text-green-400 text-sm mt-2 flex items-center justify-center gap-1">
-                  <CheckCircle className="h-4 w-4" />
-                  Ready to submit!
-                </p>
-              )}
-            </div>
-
-            {/* Draft Status */}
-            {isDraftSaved && (
-              <div className="bg-blue-900/30 border border-blue-600/50 rounded-lg p-3 mb-4">
-                <p className="text-blue-300 text-sm flex items-center justify-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Draft saved automatically
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearDraft}
-                    className="text-blue-400 hover:text-blue-300 p-1 h-auto"
-                  >
-                    Clear
-                  </Button>
-                </p>
-              </div>
-            )}
-          </motion.div>
+            Report a Civic Issue
+          </motion.h1>
 
           {/* Enhanced Photo Upload Section */}
           <div className="mb-6">
@@ -627,15 +482,10 @@ export default function ReportIssuePage() {
             )}
           </div>
 
-          {/* Enhanced Description */}
+          {/* Description */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <label className="text-gray-300 font-medium flex items-center gap-2">
-                Description *
-                {description.trim() && (
-                  <CheckCircle className="h-4 w-4 text-green-400" />
-                )}
-              </label>
+              <label className="text-gray-300 font-medium">Description</label>
               {photos.length > 0 && (
                 <Button
                   type="button"
@@ -663,21 +513,8 @@ export default function ReportIssuePage() {
               placeholder="Describe the issue briefly or use AI to generate from photos"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className={`bg-gray-800 text-white border-gray-700 focus:ring-2 focus:ring-indigo-500 ${
-                validationErrors.description ? 'border-red-500 focus:ring-red-500' : ''
-              }`}
-              rows={4}
+              className="bg-gray-800 text-white border-gray-700 focus:ring-2 focus:ring-indigo-500"
             />
-            <div className="flex items-center justify-between mt-2">
-              <div>
-                {validationErrors.description && (
-                  <p className="text-red-400 text-sm">{validationErrors.description}</p>
-                )}
-              </div>
-              <p className="text-gray-400 text-sm">
-                {description.length}/500 characters
-              </p>
-            </div>
           </div>
 
           {/* AI Suggestions */}
@@ -716,199 +553,58 @@ export default function ReportIssuePage() {
             </div>
           )}
 
-          {/* Enhanced Category */}
+          {/* Category */}
           <div className="mb-6">
-            <label className="block mb-2 text-gray-300 font-medium flex items-center gap-2">
-              Category *
-              {category && (
-                <CheckCircle className="h-4 w-4 text-green-400" />
-              )}
-            </label>
-            <Select value={category} onValueChange={(value) => setCategory(value)}>
-              <SelectTrigger className={`bg-gray-800 text-white border-gray-700 ${
-                validationErrors.category ? 'border-red-500' : ''
-              }`}>
+            <label className="block mb-2 text-gray-300 font-medium">Category</label>
+            <Select onValueChange={(value) => setCategory(value)}>
+              <SelectTrigger className="bg-gray-800 text-white border-gray-700">
                 <SelectValue placeholder="Select issue category" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="pothole">🚧 Infrastructure - Pothole</SelectItem>
-                <SelectItem value="streetlight">💡 Electricity - Streetlight</SelectItem>
+                <SelectItem value="pothole">🚧 Pothole</SelectItem>
+                <SelectItem value="streetlight">💡 Streetlight</SelectItem>
                 <SelectItem value="waste">🗑️ Waste Management</SelectItem>
-                <SelectItem value="water">💧 Water - Leakage/Supply</SelectItem>
-                <SelectItem value="others">🔧 Other Issues</SelectItem>
+                <SelectItem value="water">💧 Water Leakage</SelectItem>
+                <SelectItem value="others">🔧 Others</SelectItem>
               </SelectContent>
             </Select>
-            {validationErrors.category && (
-              <p className="text-red-400 text-sm mt-1">{validationErrors.category}</p>
-            )}
           </div>
 
-          {/* Enhanced Location */}
+          {/* Location */}
           <div className="mb-6">
             <label className="block mb-2 text-gray-300 font-medium flex items-center gap-2">
-              <MapPin className="w-4 h-4" /> 
-              Location *
-              {location.trim() && !location.includes("Unable to detect") && !location.includes("access denied") && (
-                <CheckCircle className="h-4 w-4 text-green-400" />
-              )}
+              <MapPin className="w-4 h-4" /> Location
             </label>
-            
-            <div className="space-y-3">
-              <LocationPicker
-                value={location}
-                onChange={handleLocationChange}
-                placeholder="Auto-detected or enter manually"
-                className={validationErrors.location ? 'border-red-500' : ''}
-              />
-              
-              {/* Location Actions */}
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    navigator.geolocation?.getCurrentPosition(
-                      (pos) => {
-                        const locationString = `${pos.coords.latitude}, ${pos.coords.longitude}`;
-                        setLocation(locationString);
-                        setCoordinates({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-                        toast({
-                          title: "Location updated",
-                          description: "Current location has been detected.",
-                        });
-                      },
-                      (error) => {
-                        toast({
-                          title: "Location access denied",
-                          description: "Please enter location manually or enable location access.",
-                          variant: "destructive",
-                        });
-                      }
-                    );
-                  }}
-                  className="text-blue-400 hover:text-blue-300 border-gray-600"
-                >
-                  <MapPin className="h-4 w-4 mr-1" />
-                  Detect Location
-                </Button>
-                
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowLocationPicker(!showLocationPicker)}
-                  className="text-green-400 hover:text-green-300 border-gray-600"
-                >
-                  <MapPin className="h-4 w-4 mr-1" />
-                  {showLocationPicker ? 'Hide Map' : 'Show Map'}
-                </Button>
-              </div>
-              
-              {validationErrors.location && (
-                <p className="text-red-400 text-sm">{validationErrors.location}</p>
-              )}
-              
-              {coordinates && (
-                <p className="text-green-400 text-sm flex items-center gap-1">
-                  <CheckCircle className="h-3 w-3" />
-                  GPS coordinates: {coordinates.lat.toFixed(6)}, {coordinates.lng.toFixed(6)}
-                </p>
-              )}
-            </div>
+            <LocationPicker
+              value={location}
+              onChange={handleLocationChange}
+              placeholder="Auto-detected or enter manually"
+            />
           </div>
 
 
 
-          {/* Enhanced Submit Section */}
-          <div className="space-y-4">
-            {/* Form Validation Summary */}
-            {Object.keys(validationErrors).length > 0 && (
-              <div className="bg-red-900/30 border border-red-600/50 rounded-lg p-4">
-                <h4 className="text-red-300 font-medium mb-2 flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Please fix the following issues:
-                </h4>
-                <ul className="text-red-400 text-sm space-y-1">
-                  {Object.entries(validationErrors).map(([field, error]) => (
-                    <li key={field}>• {error}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <div className="text-center">
-              <Button
-                onClick={handleSubmit}
-                disabled={isSubmitting || isCheckingDuplicates || Object.keys(validationErrors).length > 0}
-                className={`px-8 py-3 text-lg rounded-full shadow-lg transition-all duration-300 ${
-                  formProgress === 100 && Object.keys(validationErrors).length === 0
-                    ? 'bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white'
-                    : 'bg-gray-600 hover:bg-gray-700 text-gray-300'
-                } disabled:opacity-50`}
-              >
-                {isCheckingDuplicates ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Checking for duplicates...
-                  </span>
-                ) : isSubmitting ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Submitting your report...
-                  </span>
-                ) : formProgress === 100 && Object.keys(validationErrors).length === 0 ? (
-                  <span className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5" />
-                    Submit Report
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Complete form to submit
-                  </span>
-                )}
-              </Button>
-              
-              {formProgress < 100 && (
-                <p className="text-gray-400 text-sm mt-2">
-                  Complete all required fields to enable submission
-                </p>
+          {/* Submit Button */}
+          <div className="text-center">
+            <Button
+              onClick={handleSubmit}
+              disabled={isSubmitting || isCheckingDuplicates}
+              className="bg-pink-600 hover:bg-pink-700 text-white px-8 py-3 text-lg rounded-full shadow-lg disabled:opacity-50"
+            >
+              {isCheckingDuplicates ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Checking for duplicates...
+                </span>
+              ) : isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Submitting...
+                </span>
+              ) : (
+                "Submit Report"
               )}
-            </div>
-
-            {/* Additional Actions */}
-            <div className="flex justify-center gap-3 text-sm">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setDescription('');
-                  setCategory('');
-                  setLocation('');
-                  setCoordinates(null);
-                  clearAllPhotos();
-                  clearDraft();
-                  toast({
-                    title: "Form cleared",
-                    description: "All fields have been reset.",
-                  });
-                }}
-                className="text-gray-400 hover:text-gray-300"
-              >
-                Clear Form
-              </Button>
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/issues')}
-                className="text-gray-400 hover:text-gray-300"
-              >
-                View Other Issues
-              </Button>
-            </div>
+            </Button>
           </div>
 
           {/* Success Message */}
