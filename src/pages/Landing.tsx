@@ -1,13 +1,201 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Brain, MapPin, Bell, BarChart3, Users, Shield, Wrench, Construction } from 'lucide-react';
+import { Brain, MapPin, Bell, BarChart3, Users, Shield, Wrench, Construction, TrendingUp, CheckCircle, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AuthModal from '@/components/AuthModal';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { toast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { supabase } from '@/lib/supabase';
+
+// Real-Time Statistics Component
+const RealTimeStats = () => {
+  const [stats, setStats] = useState({
+    totalIssues: 0,
+    resolvedIssues: 0,
+    activeCitizens: 0,
+    loading: true
+  });
+
+  useEffect(() => {
+    fetchStats();
+
+    // Set up real-time subscription for live updates
+    const subscription = supabase
+      .channel('landing-stats')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'issues'
+        }, 
+        () => {
+          // Refresh stats when issues table changes
+          fetchStats();
+        }
+      )
+      .subscribe();
+
+    // Refresh stats every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearInterval(interval);
+    };
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      // Fetch total issues count
+      const { count: totalCount, error: totalError } = await supabase
+        .from('issues')
+        .select('*', { count: 'exact', head: true });
+
+      if (totalError) throw totalError;
+
+      // Fetch resolved issues count
+      const { count: resolvedCount, error: resolvedError } = await supabase
+        .from('issues')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'resolved');
+
+      if (resolvedError) throw resolvedError;
+
+      // Fetch active citizens count (unique users who created issues)
+      const { data: citizensData, error: citizensError } = await supabase
+        .from('issues')
+        .select('created_by');
+
+      if (citizensError) throw citizensError;
+
+      // Count unique citizens
+      const uniqueCitizens = new Set(citizensData?.map(issue => issue.created_by) || []).size;
+
+      setStats({
+        totalIssues: totalCount || 0,
+        resolvedIssues: resolvedCount || 0,
+        activeCitizens: uniqueCitizens || 0,
+        loading: false
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+      setStats(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const formatNumber = (num: number) => {
+    if (num >= 1000) {
+      return `${(num / 1000).toFixed(1)}k+`;
+    }
+    return num.toString();
+  };
+
+  return (
+    <section className="py-16 px-6 bg-white/10 backdrop-blur-md rounded-t-3xl -mt-12 border-t border-white/20">
+      <div className="max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* Total Issues Reported */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="relative"
+          >
+            <Card className="shadow-2xl border-none bg-white/20 backdrop-blur-md border border-white/30 overflow-hidden">
+              <CardContent className="p-8 text-center relative">
+                <div className="absolute top-4 right-4">
+                  <FileText className="w-8 h-8 text-yellow-300 opacity-50" />
+                </div>
+                <div className="mb-4">
+                  {stats.loading ? (
+                    <div className="animate-pulse">
+                      <div className="h-16 bg-white/20 rounded w-32 mx-auto"></div>
+                    </div>
+                  ) : (
+                    <h2 className="text-6xl font-bold text-yellow-300 drop-shadow-lg">
+                      {formatNumber(stats.totalIssues)}
+                    </h2>
+                  )}
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-2">Total Issues Reported</h3>
+                <p className="text-white/80 text-sm">Community reports submitted</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Issues Resolved to Date */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="relative"
+          >
+            <Card className="shadow-2xl border-none bg-white/20 backdrop-blur-md border border-white/30 overflow-hidden">
+              <CardContent className="p-8 text-center relative">
+                <div className="absolute top-4 right-4">
+                  <CheckCircle className="w-8 h-8 text-green-300 opacity-50" />
+                </div>
+                <div className="mb-4">
+                  {stats.loading ? (
+                    <div className="animate-pulse">
+                      <div className="h-16 bg-white/20 rounded w-32 mx-auto"></div>
+                    </div>
+                  ) : (
+                    <h2 className="text-6xl font-bold text-green-300 drop-shadow-lg">
+                      {formatNumber(stats.resolvedIssues)}
+                    </h2>
+                  )}
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-2">Issues Resolved to Date</h3>
+                <p className="text-white/80 text-sm">Successfully completed</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Active Citizens */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="relative"
+          >
+            <Card className="shadow-2xl border-none bg-white/20 backdrop-blur-md border border-white/30 overflow-hidden">
+              <CardContent className="p-8 text-center relative">
+                <div className="absolute top-4 right-4">
+                  <Users className="w-8 h-8 text-blue-300 opacity-50" />
+                </div>
+                <div className="mb-4">
+                  {stats.loading ? (
+                    <div className="animate-pulse">
+                      <div className="h-16 bg-white/20 rounded w-32 mx-auto"></div>
+                    </div>
+                  ) : (
+                    <h2 className="text-6xl font-bold text-blue-300 drop-shadow-lg">
+                      {formatNumber(stats.activeCitizens)}+
+                    </h2>
+                  )}
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-2">Active Citizens</h3>
+                <p className="text-white/80 text-sm">Engaged community members</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        {/* Live Update Indicator */}
+        <div className="mt-6 text-center">
+          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full border border-white/20">
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            <span className="text-white/90 text-sm">Live Statistics - Updates in Real-Time</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -105,41 +293,8 @@ export default function Landing() {
           </Button>
         </section>
 
-        {/* Features Section */}
-        <section className="py-16 px-6 bg-white/10 backdrop-blur-md rounded-t-3xl -mt-12 border-t border-white/20">
-        <h2 className="text-center text-3xl font-bold mb-12 text-white drop-shadow-lg">Discover Powerful Features</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          <Card className="shadow-xl border-none bg-white/20 backdrop-blur-md border border-white/20">
-            <CardContent className="flex flex-col items-center p-6">
-              <Brain className="w-10 h-10 text-indigo-300 mb-4" />
-              <h3 className="text-xl font-semibold mb-2 text-white">AI-Powered Routing</h3>
-              <p className="text-white/90 text-center">
-                Automatically categorizes and assigns reports to relevant departments for faster action.
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card className="shadow-xl border-none bg-white/20 backdrop-blur-md border border-white/20">
-            <CardContent className="flex flex-col items-center p-6">
-              <MapPin className="w-10 h-10 text-pink-400 mb-4" />
-              <h3 className="text-xl font-semibold mb-2 text-white">Smart Geo-Tagging</h3>
-              <p className="text-white/90 text-center">
-                Reports automatically capture exact location data for accurate issue mapping.
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card className="shadow-xl border-none bg-white/20 backdrop-blur-md border border-white/20">
-            <CardContent className="flex flex-col items-center p-6">
-              <Bell className="w-10 h-10 text-green-400 mb-4" />
-              <h3 className="text-xl font-semibold mb-2 text-white">Live Notifications</h3>
-              <p className="text-white/90 text-center">
-                Stay updated as your report moves from submission to resolution in real-time.
-              </p>
-            </CardContent>
-          </Card>
-          </div>
-        </section>
+        {/* Real-Time Statistics Section */}
+        <RealTimeStats />
 
         {/* User Selection Section */}
         <section id="user-selection" className="py-20 px-6 bg-black/30 backdrop-blur-sm">
