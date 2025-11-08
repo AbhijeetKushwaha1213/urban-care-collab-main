@@ -23,6 +23,7 @@ import EventDetail from "./pages/EventDetail";
 import AuthorityDashboard from "./pages/AuthorityDashboard";
 import AuthCallback from "./pages/AuthCallback";
 import OfficialLogin from "./pages/official/OfficialLogin";
+import OfficialOnboarding from "./pages/official/OfficialOnboarding";
 import OfficialDashboard from "./pages/official/OfficialDashboard";
 import IssueDetails from "./pages/official/IssueDetails";
 import UploadResolution from "./pages/official/UploadResolution";
@@ -182,6 +183,7 @@ const AppRoutes = () => {
         
         {/* Official Portal Routes */}
         <Route path="/official/login" element={<SafeRoute><OfficialLogin /></SafeRoute>} />
+        <Route path="/official/onboarding" element={<SafeRoute><OfficialOnboarding /></SafeRoute>} />
         <Route path="/official/dashboard" element={<SafeRoute><OfficialDashboard /></SafeRoute>} />
         <Route path="/official/issue/:id" element={<SafeRoute><IssueDetails /></SafeRoute>} />
         <Route path="/official/issue/:id/upload-resolution" element={<SafeRoute><UploadResolution /></SafeRoute>} />

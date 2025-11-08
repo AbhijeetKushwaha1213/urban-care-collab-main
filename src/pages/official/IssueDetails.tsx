@@ -33,6 +33,9 @@ const IssueDetails: React.FC = () => {
   const [newNote, setNewNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [afterPhoto, setAfterPhoto] = useState<File | null>(null);
+  const [afterPhotoPreview, setAfterPhotoPreview] = useState<string>('');
 
   useEffect(() => {
     if (id) {
@@ -115,6 +118,76 @@ const IssueDetails: React.FC = () => {
     navigate(`/official/issue/${issue.id}/upload-resolution`);
   };
 
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size must be less than 5MB');
+        return;
+      }
+      
+      setAfterPhoto(file);
+      setAfterPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleUploadAfterPhoto = async () => {
+    if (!afterPhoto || !issue) return;
+
+    setUploadingPhoto(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // Upload photo to storage
+      const fileExt = afterPhoto.name.split('.').pop();
+      const fileName = `${issue.id}-after-${Date.now()}.${fileExt}`;
+      const filePath = `issue-resolutions/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('issue-images')
+        .upload(filePath, afterPhoto);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('issue-images')
+        .getPublicUrl(filePath);
+
+      // Update issue with after image
+      const { error: updateError } = await supabase
+        .from('issues')
+        .update({
+          after_image: publicUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', issue.id);
+
+      if (updateError) throw updateError;
+
+      // Add note about photo upload
+      await supabase
+        .from('issue_internal_notes')
+        .insert({
+          issue_id: issue.id,
+          official_id: user.id,
+          note: 'Uploaded after photo showing resolved issue.'
+        });
+
+      // Refresh issue details
+      fetchIssueDetails();
+      setAfterPhoto(null);
+      setAfterPhotoPreview('');
+      alert('✅ After photo uploaded successfully!');
+    } catch (err: any) {
+      console.error('Error uploading photo:', err);
+      alert('❌ Failed to upload photo: ' + err.message);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleAddNote = async () => {
     if (!newNote.trim() || !issue) return;
     
@@ -150,15 +223,44 @@ const IssueDetails: React.FC = () => {
     window.open(url, '_blank');
   };
 
-  const handleCopyLocation = () => {
+  const handleCopyLocation = async () => {
     if (!issue?.latitude || !issue?.longitude) {
       alert('Location coordinates not available');
       return;
     }
 
     const url = `https://www.google.com/maps?q=${issue.latitude},${issue.longitude}`;
-    navigator.clipboard.writeText(url);
-    alert('Location link copied to clipboard!');
+    
+    try {
+      // Try modern clipboard API first
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+        alert('✅ Location link copied to clipboard!');
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+          document.execCommand('copy');
+          alert('✅ Location link copied to clipboard!');
+        } catch (err) {
+          console.error('Fallback copy failed:', err);
+          alert('❌ Failed to copy. Please copy manually: ' + url);
+        }
+        
+        document.body.removeChild(textArea);
+      }
+    } catch (err) {
+      console.error('Copy failed:', err);
+      // Show the URL so user can copy manually
+      prompt('Copy this location URL:', url);
+    }
   };
 
   const getUrgencyColor = (urgency?: string) => {
@@ -259,6 +361,87 @@ const IssueDetails: React.FC = () => {
                   />
                 </div>
               )}
+
+              {/* After Photo Section */}
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  "After" Photo (Resolution Proof):
+                </p>
+                
+                {issue.after_image ? (
+                  <div>
+                    <img
+                      src={issue.after_image}
+                      alt="Resolved Issue"
+                      className="w-full max-w-2xl rounded-lg shadow-md mb-2"
+                    />
+                    <p className="text-xs text-green-600 dark:text-green-400">
+                      ✅ Resolution photo uploaded
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {afterPhotoPreview ? (
+                      <div className="relative">
+                        <img
+                          src={afterPhotoPreview}
+                          alt="Preview"
+                          className="w-full max-w-2xl rounded-lg shadow-md"
+                        />
+                        <button
+                          onClick={() => {
+                            setAfterPhoto(null);
+                            setAfterPhotoPreview('');
+                          }}
+                          className="absolute top-2 right-2 px-3 py-1 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+                        <Camera className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                        <p className="text-gray-600 dark:text-gray-400 mb-4">
+                          Upload a photo showing the resolved issue
+                        </p>
+                        <label className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium cursor-pointer">
+                          <Camera className="w-5 h-5" />
+                          Choose Photo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handlePhotoSelect}
+                            className="hidden"
+                          />
+                        </label>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                          Maximum file size: 5MB
+                        </p>
+                      </div>
+                    )}
+
+                    {afterPhoto && (
+                      <button
+                        onClick={handleUploadAfterPhoto}
+                        disabled={uploadingPhoto}
+                        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {uploadingPhoto ? (
+                          <>
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="w-5 h-5" />
+                            Upload After Photo
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

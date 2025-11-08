@@ -65,6 +65,30 @@ const OfficialDashboard: React.FC = () => {
 
       setUser(profile);
 
+      // DEMO MODE: Fetch ALL issues instead of just assigned ones
+      // TODO: In production, uncomment the assigned filter below
+      
+      // Fetch all issues for demo
+      const { data: tasksData } = await supabase
+        .from('issues')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (tasksData) {
+        setTasks(tasksData);
+        
+        // Calculate demo stats from all issues
+        const demoStats = {
+          new_assigned: tasksData.filter(t => t.status === 'assigned' || t.status === 'reported').length,
+          in_progress: tasksData.filter(t => t.status === 'in_progress').length,
+          pending_approval: tasksData.filter(t => t.status === 'pending_approval').length,
+          critical_count: tasksData.filter(t => t.urgency === 'critical').length,
+          total_assigned: tasksData.length
+        };
+        setStats(demoStats);
+      }
+      
+      /* PRODUCTION CODE - Uncomment when ready:
       // Fetch dashboard stats
       const { data: statsData } = await supabase
         .from('official_dashboard_stats')
@@ -76,7 +100,7 @@ const OfficialDashboard: React.FC = () => {
         setStats(statsData);
       }
 
-      // Fetch all assigned tasks
+      // Fetch only assigned tasks
       const { data: tasksData } = await supabase
         .from('issues')
         .select('*')
@@ -86,6 +110,7 @@ const OfficialDashboard: React.FC = () => {
       if (tasksData) {
         setTasks(tasksData);
       }
+      */
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -186,9 +211,9 @@ const OfficialDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Testing Mode Banner */}
-      <div className="bg-yellow-500 text-black text-center py-2 px-4 text-sm font-medium">
-        🧪 TESTING MODE: All user types can access this portal. Your account type: <strong>{user?.user_type || 'unknown'}</strong>
+      {/* Demo Mode Banner */}
+      <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-center py-3 px-4 text-sm font-medium shadow-lg">
+        🎬 DEMO MODE: Showing ALL issues from the system (not filtered by department or assignment)
       </div>
       
       {/* Header */}

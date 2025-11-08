@@ -44,7 +44,19 @@ const OfficialLogin: React.FC = () => {
       }
       */
 
-      // Navigate to official dashboard
+      // DEMO MODE: Skip onboarding, go directly to dashboard
+      // TODO: In production, uncomment the onboarding check below
+      /*
+      if (!profile.is_onboarding_complete || !profile.department || !profile.employee_id) {
+        // First-time login - redirect to onboarding
+        navigate('/official/onboarding');
+      } else {
+        // Navigate to official dashboard
+        navigate('/official/dashboard');
+      }
+      */
+      
+      // For demo: Always go to dashboard
       navigate('/official/dashboard');
     } catch (err: any) {
       setError(err.message || 'Invalid credentials. Please try again.');
@@ -55,9 +67,9 @@ const OfficialLogin: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
-      {/* Testing Mode Banner */}
-      <div className="fixed top-0 left-0 right-0 bg-yellow-500 text-black text-center py-2 px-4 text-sm font-medium z-50">
-        🧪 TESTING MODE: All user types can access this portal
+      {/* Demo Mode Banner */}
+      <div className="fixed top-0 left-0 right-0 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-center py-2 px-4 text-sm font-medium z-50 shadow-lg">
+        🎬 DEMO MODE: Onboarding skipped • All issues visible • Any account can login
       </div>
       
       <div className="w-full max-w-md mt-12">
@@ -146,10 +158,10 @@ const OfficialLogin: React.FC = () => {
         </div>
 
         {/* Footer Note */}
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <p className="text-xs text-center text-blue-800 dark:text-blue-300">
-            <strong>🧪 Testing Mode Active:</strong> You can login with any user account (citizen, authority, or official). 
-            In production, only official accounts will have access.
+        <div className="mt-6 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+          <p className="text-xs text-center text-purple-800 dark:text-purple-300">
+            <strong>🎬 Demo Mode:</strong> Login with any account to see the worker dashboard. 
+            Profile setup is skipped and all issues are visible for demonstration purposes.
           </p>
         </div>
       </div>

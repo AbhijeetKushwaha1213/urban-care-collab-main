@@ -6,6 +6,8 @@ export interface User {
   user_type: 'citizen' | 'authority' | 'official';
   department?: string;
   employee_id?: string;
+  phone?: string;
+  address?: string;
   created_at: string;
   is_onboarding_complete: boolean;
 }
