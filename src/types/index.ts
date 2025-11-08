@@ -3,8 +3,9 @@ export interface User {
   id: string;
   email: string;
   full_name: string;
-  user_type: 'citizen' | 'authority';
+  user_type: 'citizen' | 'authority' | 'official';
   department?: string;
+  employee_id?: string;
   created_at: string;
   is_onboarding_complete: boolean;
 }
@@ -16,6 +17,7 @@ export interface Issue {
   location: string;
   category: IssueCategory;
   image?: string;
+  after_image?: string;
   status: IssueStatus;
   urgency?: IssueUrgency;
   latitude?: number;
@@ -25,6 +27,8 @@ export interface Issue {
   department?: string;
   created_at: string;
   updated_at?: string;
+  completed_at?: string;
+  show_in_gallery?: boolean;
   comments_count: number;
   volunteers_count: number;
   upvotes_count?: number;
@@ -67,8 +71,10 @@ export type IssueCategory =
   | 'Other';
 
 export type IssueStatus = 
-  | 'reported' 
+  | 'reported'
+  | 'assigned'
   | 'in_progress' 
+  | 'pending_approval'
   | 'resolved' 
   | 'closed';
 
@@ -84,7 +90,7 @@ export type EventStatus =
   | 'completed' 
   | 'cancelled';
 
-export type UserType = 'citizen' | 'authority';
+export type UserType = 'citizen' | 'authority' | 'official';
 
 // API Response types
 export interface ApiResponse<T> {
@@ -205,4 +211,29 @@ export interface IssueAssignment {
   department: string;
   assigned_at: string;
   notes?: string;
+}
+
+/
+/ Department Official specific types
+export interface OfficialDashboardStats {
+  new_assigned: number;
+  in_progress: number;
+  pending_approval: number;
+  critical_count: number;
+  total_assigned: number;
+}
+
+export interface IssueInternalNote {
+  id: string;
+  issue_id: string;
+  official_id: string;
+  note: string;
+  created_at: string;
+  updated_at: string;
+  official_name?: string;
+}
+
+export interface OfficialTaskCard extends Issue {
+  citizen_reports_count?: number;
+  ai_severity?: string;
 }

@@ -22,6 +22,11 @@ import UserOnboarding from "./pages/UserOnboarding";
 import EventDetail from "./pages/EventDetail";
 import AuthorityDashboard from "./pages/AuthorityDashboard";
 import AuthCallback from "./pages/AuthCallback";
+import OfficialLogin from "./pages/official/OfficialLogin";
+import OfficialDashboard from "./pages/official/OfficialDashboard";
+import IssueDetails from "./pages/official/IssueDetails";
+import UploadResolution from "./pages/official/UploadResolution";
+import OfficialProfile from "./pages/official/OfficialProfile";
 
 const queryClient = new QueryClient();
 
@@ -174,6 +179,14 @@ const AppRoutes = () => {
         <Route path="/events/:id" element={<SafeRoute><EventDetail /></SafeRoute>} />
         <Route path="/authority-dashboard" element={<SafeRoute><AuthorityDashboard /></SafeRoute>} />
         <Route path="/auth/callback" element={<SafeRoute><AuthCallback /></SafeRoute>} />
+        
+        {/* Official Portal Routes */}
+        <Route path="/official/login" element={<SafeRoute><OfficialLogin /></SafeRoute>} />
+        <Route path="/official/dashboard" element={<SafeRoute><OfficialDashboard /></SafeRoute>} />
+        <Route path="/official/issue/:id" element={<SafeRoute><IssueDetails /></SafeRoute>} />
+        <Route path="/official/issue/:id/upload-resolution" element={<SafeRoute><UploadResolution /></SafeRoute>} />
+        <Route path="/official/profile" element={<SafeRoute><OfficialProfile /></SafeRoute>} />
+        
         <Route path="*" element={<SafeRoute><NotFound /></SafeRoute>} />
       </Routes>
       

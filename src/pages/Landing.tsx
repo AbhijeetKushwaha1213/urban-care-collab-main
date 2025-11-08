@@ -232,12 +232,8 @@ export default function Landing() {
   };
 
   const handleWorkerAccess = () => {
-    // Show under development modal
-    setShowDevModal(true);
-    toast({
-      title: "Coming Soon!",
-      description: "Worker portal is currently under development",
-    });
+    // Navigate to official portal login
+    navigate('/official/login');
   };
 
   const handleAuthSuccess = () => {
@@ -353,11 +349,6 @@ export default function Landing() {
               >
                 Access as Worker
               </Button>
-              <div className="absolute top-4 right-4">
-                <span className="bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full">
-                  Coming Soon
-                </span>
-              </div>
             </motion.div>
           </div>
         </section>
