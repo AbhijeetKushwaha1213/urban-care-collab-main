@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MapPin, Calendar, ArrowLeft, Send, ThumbsUp, MessageSquare, AlertCircle, CheckCircle, Clock, Eye, X } from 'lucide-react';
+import { MapPin, Calendar, ArrowLeft, Send, ThumbsUp, MessageSquare, AlertCircle, CheckCircle, Clock, Eye, X, Trash2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -62,6 +62,8 @@ const IssueDetail = () => {
   const [viewCount, setViewCount] = useState(0);
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch issue data and track views
   useEffect(() => {
@@ -283,6 +285,51 @@ const IssueDetail = () => {
     setCommentModalOpen(true);
   };
 
+  // Handle issue deletion
+  const handleDeleteIssue = async () => {
+    if (!currentUser || !issue) return;
+
+    // Check if current user is the creator
+    if (issue.created_by !== currentUser.id) {
+      toast({
+        title: "Permission denied",
+        description: "You can only delete issues you created",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      // Delete the issue from database
+      const { error } = await supabase
+        .from('issues')
+        .delete()
+        .eq('id', id)
+        .eq('created_by', currentUser.id); // Extra security check
+
+      if (error) throw error;
+
+      toast({
+        title: "Issue Deleted",
+        description: "Your issue has been successfully deleted",
+      });
+
+      // Navigate back to issues page
+      navigate('/issues');
+    } catch (error) {
+      console.error('Error deleting issue:', error);
+      toast({
+        title: "Delete Failed",
+        description: "Failed to delete the issue. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteModalOpen(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen">
@@ -319,13 +366,28 @@ const IssueDetail = () => {
       
       <div className="pt-32 pb-20 px-4 md:px-6 container mx-auto">
         <div className="max-w-4xl mx-auto">
-          <button 
-            onClick={() => navigate('/issues')}
-            className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            <span>Back to Issues</span>
-          </button>
+          <div className="flex items-center justify-between mb-6">
+            <button 
+              onClick={() => navigate('/issues')}
+              className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              <span>Back to Issues</span>
+            </button>
+
+            {/* Delete button - only show for issue creator */}
+            {currentUser && issue && issue.created_by === currentUser.id && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setDeleteModalOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Issue
+              </Button>
+            )}
+          </div>
           
           {/* Issue Image */}
           <div className="rounded-xl overflow-hidden mb-6">
@@ -530,6 +592,86 @@ const IssueDetail = () => {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete Issue
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm text-red-800">
+                <strong>Warning:</strong> This action cannot be undone. Deleting this issue will permanently remove it from:
+              </p>
+              <ul className="mt-2 space-y-1 text-sm text-red-700">
+                <li className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                  <span>All issues pages</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                  <span>Your profile and homepage</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                  <span>Authority dashboard</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                  <span>All comments and upvotes</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <p className="text-sm text-gray-700">
+                <strong>Issue:</strong> {issue?.title}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Reported on {issue && new Date(issue.created_at).toLocaleDateString()}
+              </p>
+            </div>
+
+            <p className="text-sm text-gray-600">
+              Are you sure you want to permanently delete this issue?
+            </p>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setDeleteModalOpen(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={handleDeleteIssue}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {isDeleting ? (
+                  <span className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Deleting...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Trash2 className="h-4 w-4" />
+                    Yes, Delete Issue
+                  </span>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
