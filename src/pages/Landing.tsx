@@ -2,16 +2,19 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Brain, MapPin, Bell, BarChart3, Users, Shield } from 'lucide-react';
+import { Brain, MapPin, Bell, BarChart3, Users, Shield, Wrench, Construction } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AuthModal from '@/components/AuthModal';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { toast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export default function Landing() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [selectedUserType, setSelectedUserType] = useState<'citizen' | 'authority' | null>(null);
+  const [showDevModal, setShowDevModal] = useState(false);
 
   const handleGetStarted = () => {
     // Scroll to the user type selection section
@@ -38,6 +41,15 @@ export default function Landing() {
       setSelectedUserType('authority');
       setAuthModalOpen(true);
     }
+  };
+
+  const handleWorkerAccess = () => {
+    // Show under development modal
+    setShowDevModal(true);
+    toast({
+      title: "Coming Soon!",
+      description: "Worker portal is currently under development",
+    });
   };
 
   const handleAuthSuccess = () => {
@@ -132,12 +144,12 @@ export default function Landing() {
         {/* User Selection Section */}
         <section id="user-selection" className="py-20 px-6 bg-black/30 backdrop-blur-sm">
           <h2 className="text-3xl font-bold text-center mb-12 text-white drop-shadow-lg">Choose Your Access Type</h2>
-          <div className="flex flex-col md:flex-row justify-center gap-8 max-w-4xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-center gap-8 max-w-6xl mx-auto">
           
             {/* Citizen Access */}
             <motion.div 
               whileHover={{ scale: 1.05 }} 
-              className="bg-white/20 p-8 rounded-2xl text-center shadow-xl w-full md:w-1/2 backdrop-blur-md border border-white/20"
+              className="bg-white/20 p-8 rounded-2xl text-center shadow-xl w-full md:w-1/3 backdrop-blur-md border border-white/20"
             >
               <Users className="w-16 h-16 text-pink-400 mx-auto mb-4" />
               <h3 className="text-2xl font-semibold mb-4 text-pink-400">Citizen Access</h3>
@@ -155,7 +167,7 @@ export default function Landing() {
             {/* Authority Access */}
             <motion.div 
               whileHover={{ scale: 1.05 }} 
-              className="bg-white/20 p-8 rounded-2xl text-center shadow-xl w-full md:w-1/2 backdrop-blur-md border border-white/20"
+              className="bg-white/20 p-8 rounded-2xl text-center shadow-xl w-full md:w-1/3 backdrop-blur-md border border-white/20"
             >
               <Shield className="w-16 h-16 text-blue-400 mx-auto mb-4" />
               <h3 className="text-2xl font-semibold mb-4 text-blue-400">Authority Access</h3>
@@ -168,6 +180,29 @@ export default function Landing() {
               >
                 Access as Authority
               </Button>
+            </motion.div>
+
+            {/* Worker Access */}
+            <motion.div 
+              whileHover={{ scale: 1.05 }} 
+              className="bg-white/20 p-8 rounded-2xl text-center shadow-xl w-full md:w-1/3 backdrop-blur-md border border-white/20 relative"
+            >
+              <Wrench className="w-16 h-16 text-orange-400 mx-auto mb-4" />
+              <h3 className="text-2xl font-semibold mb-4 text-orange-400">Worker Access</h3>
+              <p className="text-white/90 text-sm mb-6">
+                Field workers can view assigned tasks, update progress, and complete civic maintenance work efficiently.
+              </p>
+              <Button 
+                onClick={handleWorkerAccess}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-full w-full"
+              >
+                Access as Worker
+              </Button>
+              <div className="absolute top-4 right-4">
+                <span className="bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full">
+                  Coming Soon
+                </span>
+              </div>
             </motion.div>
           </div>
         </section>
@@ -217,6 +252,77 @@ export default function Landing() {
         redirectTo={selectedUserType === 'citizen' ? '/issues' : '/authority-dashboard'}
         userType={selectedUserType || 'citizen'}
       />
+
+      {/* Under Development Modal */}
+      <Dialog open={showDevModal} onOpenChange={setShowDevModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <Construction className="h-6 w-6 text-orange-500" />
+              Under Development
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Wrench className="h-8 w-8 text-orange-500 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="font-semibold text-orange-900 mb-2">Worker Portal Coming Soon!</h3>
+                  <p className="text-sm text-orange-800">
+                    We're currently building an advanced portal for field workers to manage and complete assigned tasks efficiently.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-semibold text-gray-900">Upcoming Features:</h4>
+              <ul className="space-y-2 text-sm text-gray-700">
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                  <span>View assigned tasks with GPS navigation</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                  <span>Upload before/after photos of completed work</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                  <span>Real-time task updates and notifications</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                  <span>Performance tracking and achievements</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-800">
+                <strong>Stay tuned!</strong> The worker portal will be available soon with powerful tools for municipal field workers.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowDevModal(false)}
+              >
+                Close
+              </Button>
+              <Button 
+                onClick={() => {
+                  setShowDevModal(false);
+                  handleCitizenAccess();
+                }}
+                className="bg-pink-500 hover:bg-pink-600"
+              >
+                Try Citizen Access
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );
