@@ -14,42 +14,7 @@ interface SuccessStory {
   category: string;
 }
 
-// Sample data for fallback
-const sampleStories: SuccessStory[] = [
-  {
-    id: '1',
-    title: 'Park Bench Restoration',
-    location: 'Willowbrook Park',
-    beforeImage: 'https://images.unsplash.com/photo-1604357209793-fca5dca89f97?q=80&w=400&auto=format&fit=crop',
-    afterImage: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=400&auto=format&fit=crop',
-    solverName: 'Sarah Johnson',
-    solverAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?q=80&w=100&auto=format&fit=crop',
-    solvedDate: '2024-10-15',
-    category: 'Infrastructure'
-  },
-  {
-    id: '2',
-    title: 'Street Light Repair',
-    location: 'Maple Avenue',
-    beforeImage: 'https://images.unsplash.com/photo-1621556712457-1ec8a586daa7?q=80&w=400&auto=format&fit=crop',
-    afterImage: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?q=80&w=400&auto=format&fit=crop',
-    solverName: 'Mike Chen',
-    solverAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=100&auto=format&fit=crop',
-    solvedDate: '2024-10-12',
-    category: 'Infrastructure'
-  },
-  {
-    id: '3',
-    title: 'Community Garden Revival',
-    location: 'East Side Garden',
-    beforeImage: 'https://images.unsplash.com/photo-1543674892-7d64d45facad?q=80&w=400&auto=format&fit=crop',
-    afterImage: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?q=80&w=400&auto=format&fit=crop',
-    solverName: 'Emma Rodriguez',
-    solverAvatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=100&auto=format&fit=crop',
-    solvedDate: '2024-10-08',
-    category: 'Environment'
-  }
-];
+// No hardcoded data - only show real resolved issues with before/after photos
 
 const SuccessStoriesShowcase: React.FC = () => {
   const [stories, setStories] = useState<SuccessStory[]>([]);
@@ -58,12 +23,34 @@ const SuccessStoriesShowcase: React.FC = () => {
 
   useEffect(() => {
     fetchSuccessStories();
+
+    // Set up real-time subscription for new success stories
+    const subscription = supabase
+      .channel('success-stories-updates')
+      .on('postgres_changes', 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'issues',
+          filter: 'status=eq.resolved'
+        }, 
+        (payload) => {
+          console.log('Issue resolved - refreshing success stories:', payload);
+          // Refresh success stories when an issue is marked as resolved
+          fetchSuccessStories();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchSuccessStories = async () => {
     setLoading(true);
     try {
-      // Query for solved issues with before/after images
+      // Query for resolved issues with before/after images
       const { data, error } = await supabase
         .from('issues')
         .select(`
@@ -72,39 +59,49 @@ const SuccessStoriesShowcase: React.FC = () => {
           location,
           image,
           category,
-          solved_date,
-          solver_name,
-          solver_avatar,
-          after_image
+          after_image,
+          completed_at,
+          updated_at,
+          assigned_to,
+          user_profiles!issues_assigned_to_fkey(full_name, avatar_url)
         `)
-        .eq('status', 'solved')
+        .eq('status', 'resolved')
         .not('after_image', 'is', null)
-        .order('solved_date', { ascending: false })
+        .not('image', 'is', null)
+        .order('completed_at', { ascending: false })
         .limit(10);
 
       if (error) throw error;
 
       if (data && data.length > 0) {
-        const transformedStories = data.map(story => ({
-          id: story.id,
-          title: story.title,
-          location: story.location,
-          beforeImage: story.image,
-          afterImage: story.after_image,
-          solverName: story.solver_name || 'Anonymous Helper',
-          solverAvatar: story.solver_avatar,
-          solvedDate: story.solved_date,
-          category: story.category
-        }));
-        setStories(transformedStories);
+        const transformedStories = data
+          .filter(story => story.image && story.after_image) // Ensure both images exist
+          .map(story => ({
+            id: story.id,
+            title: story.title,
+            location: story.location,
+            beforeImage: story.image,
+            afterImage: story.after_image,
+            solverName: story.user_profiles?.full_name || 'Municipal Worker',
+            solverAvatar: story.user_profiles?.avatar_url,
+            solvedDate: story.completed_at || story.updated_at,
+            category: story.category
+          }));
+        
+        if (transformedStories.length > 0) {
+          setStories(transformedStories);
+        } else {
+          // No valid stories with both images, hide component
+          setStories([]);
+        }
       } else {
-        // Use sample data if no real data available
-        setStories(sampleStories);
+        // No resolved issues yet, hide component
+        setStories([]);
       }
     } catch (error) {
       console.error('Error fetching success stories:', error);
-      // Fallback to sample data
-      setStories(sampleStories);
+      // Hide component on error
+      setStories([]);
     } finally {
       setLoading(false);
     }
