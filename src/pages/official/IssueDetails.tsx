@@ -135,55 +135,107 @@ const IssueDetails: React.FC = () => {
     if (!afterPhoto || !issue) return;
 
     setUploadingPhoto(true);
+    console.log('Starting photo upload...', { issueId: issue.id, fileName: afterPhoto.name });
+    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Upload photo to storage
-      const fileExt = afterPhoto.name.split('.').pop();
-      const fileName = `${issue.id}-after-${Date.now()}.${fileExt}`;
-      const filePath = `issue-resolutions/${fileName}`;
+      // Convert image to base64
+      const reader = new FileReader();
+      
+      reader.onloadend = async () => {
+        try {
+          const base64Image = reader.result as string;
+          
+          console.log('Image converted to base64, updating database...');
+          
+          // First, check what columns exist
+          const { data: existingIssue, error: fetchError } = await supabase
+            .from('issues')
+            .select('*')
+            .eq('id', issue.id)
+            .single();
 
-      const { error: uploadError } = await supabase.storage
-        .from('issue-images')
-        .upload(filePath, afterPhoto);
+          if (fetchError) {
+            console.error('Error fetching issue:', fetchError);
+            throw new Error('Could not fetch issue details');
+          }
 
-      if (uploadError) throw uploadError;
+          console.log('Existing issue columns:', Object.keys(existingIssue || {}));
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('issue-images')
-        .getPublicUrl(filePath);
+          // Build update object with only fields that exist
+          const updateData: any = {
+            image: base64Image, // Store in existing 'image' field for now
+            status: 'resolved' // Change status to resolved
+          };
 
-      // Update issue with after image
-      const { error: updateError } = await supabase
-        .from('issues')
-        .update({
-          after_image: publicUrl,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', issue.id);
+          // Only add these if they exist in the schema
+          if ('after_image' in existingIssue) {
+            updateData.after_image = base64Image;
+          }
+          if ('completed_at' in existingIssue) {
+            updateData.completed_at = new Date().toISOString();
+          }
+          if ('updated_at' in existingIssue) {
+            updateData.updated_at = new Date().toISOString();
+          }
 
-      if (updateError) throw updateError;
+          console.log('Updating with data:', updateData);
 
-      // Add note about photo upload
-      await supabase
-        .from('issue_internal_notes')
-        .insert({
-          issue_id: issue.id,
-          official_id: user.id,
-          note: 'Uploaded after photo showing resolved issue.'
-        });
+          // Update issue
+          const { error: updateError, data: updatedData } = await supabase
+            .from('issues')
+            .update(updateData)
+            .eq('id', issue.id)
+            .select();
 
-      // Refresh issue details
-      fetchIssueDetails();
-      setAfterPhoto(null);
-      setAfterPhotoPreview('');
-      alert('✅ After photo uploaded successfully!');
+          if (updateError) {
+            console.error('Database update error:', updateError);
+            throw new Error(`Update failed: ${updateError.message}`);
+          }
+
+          console.log('Database updated successfully:', updatedData);
+
+          // Try to add note (non-critical)
+          try {
+            await supabase
+              .from('issue_internal_notes')
+              .insert({
+                issue_id: issue.id,
+                official_id: user.id,
+                note: 'Uploaded after photo showing resolved issue.'
+              });
+          } catch (noteError) {
+            console.warn('Failed to add note (non-critical):', noteError);
+          }
+
+          // Refresh issue details
+          await fetchIssueDetails();
+          setAfterPhoto(null);
+          setAfterPhotoPreview('');
+          
+          alert('✅ After photo uploaded successfully! Issue marked as resolved.');
+          setUploadingPhoto(false);
+        } catch (err: any) {
+          console.error('Error in upload process:', err);
+          alert('❌ Failed to upload photo: ' + (err.message || 'Unknown error. Check console for details.'));
+          setUploadingPhoto(false);
+        }
+      };
+
+      reader.onerror = () => {
+        console.error('FileReader error');
+        alert('❌ Failed to read image file');
+        setUploadingPhoto(false);
+      };
+
+      // Read the file as base64
+      reader.readAsDataURL(afterPhoto);
+      
     } catch (err: any) {
       console.error('Error uploading photo:', err);
-      alert('❌ Failed to upload photo: ' + err.message);
-    } finally {
+      alert('❌ Failed to upload photo: ' + (err.message || 'Unknown error'));
       setUploadingPhoto(false);
     }
   };
