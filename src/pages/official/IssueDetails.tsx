@@ -164,16 +164,24 @@ const IssueDetails: React.FC = () => {
 
           console.log('Existing issue columns:', Object.keys(existingIssue || {}));
 
-          // Build update object with only fields that exist
+          // Build update object - IMPORTANT: Don't overwrite the 'image' field (before photo)
           const updateData: any = {
-            image: base64Image, // Store in existing 'image' field for now
             status: 'resolved' // Change status to resolved
           };
 
-          // Only add these if they exist in the schema
+          // Store after image in after_image column (or image if after_image doesn't exist)
           if ('after_image' in existingIssue) {
+            // Preferred: Store in after_image column
             updateData.after_image = base64Image;
+            console.log('Storing after photo in after_image column');
+          } else {
+            // Fallback: If after_image column doesn't exist, we need to handle this differently
+            console.warn('after_image column does not exist! Please run the database migration.');
+            // Don't overwrite the original image - throw error instead
+            throw new Error('Database not configured. Please run: ALTER TABLE issues ADD COLUMN after_image TEXT;');
           }
+          
+          // Add optional fields if they exist
           if ('completed_at' in existingIssue) {
             updateData.completed_at = new Date().toISOString();
           }

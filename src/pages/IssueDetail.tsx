@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
+import CitizenFeedbackModal from '@/components/CitizenFeedbackModal';
 
 // Helper functions
 const getStatusIcon = (status) => {
@@ -64,6 +65,7 @@ const IssueDetail = () => {
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
 
   // Fetch issue data and track views
   useEffect(() => {
@@ -417,6 +419,60 @@ const IssueDetail = () => {
               </Badge>
             </div>
           </div>
+
+          {/* Citizen Feedback Button - Show only for resolved issues created by current user */}
+          {issue.status === 'resolved' && currentUser && issue.created_by === currentUser.id && !issue.citizen_feedback && (
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border-2 border-green-200 dark:border-green-800 rounded-xl p-6 mb-6">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    ✅ This issue has been marked as resolved!
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Please let us know if you're satisfied with the resolution. Your feedback helps us improve our service.
+                  </p>
+                  <button
+                    onClick={() => setFeedbackModalOpen(true)}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    Rate This Resolution
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Show feedback if already provided */}
+          {issue.citizen_feedback && (
+            <div className={`border-2 rounded-xl p-6 mb-6 ${
+              issue.citizen_feedback === 'satisfied'
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+            }`}>
+              <div className="flex items-start gap-3">
+                {issue.citizen_feedback === 'satisfied' ? (
+                  <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
+                ) : (
+                  <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
+                )}
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold mb-2">
+                    {issue.citizen_feedback === 'satisfied' 
+                      ? '✅ Citizen Satisfied' 
+                      : '❌ Citizen Not Satisfied'}
+                  </h3>
+                  {issue.citizen_feedback_comment && (
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                      "{issue.citizen_feedback_comment}"
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Feedback provided on {new Date(issue.citizen_feedback_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Issue Meta Information */}
           <div className="flex flex-wrap gap-4 mb-6">
@@ -674,6 +730,20 @@ const IssueDetail = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Citizen Feedback Modal */}
+      {issue && (
+        <CitizenFeedbackModal
+          isOpen={feedbackModalOpen}
+          onClose={() => setFeedbackModalOpen(false)}
+          issueId={issue.id}
+          issueTitle={issue.title}
+          onFeedbackSubmitted={() => {
+            // Refresh issue data
+            fetchIssueData();
+          }}
+        />
+      )}
     </div>
   );
 };

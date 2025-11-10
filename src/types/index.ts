@@ -31,6 +31,9 @@ export interface Issue {
   updated_at?: string;
   completed_at?: string;
   show_in_gallery?: boolean;
+  citizen_feedback?: 'satisfied' | 'not_satisfied';
+  citizen_feedback_comment?: string;
+  citizen_feedback_at?: string;
   comments_count: number;
   volunteers_count: number;
   upvotes_count?: number;
