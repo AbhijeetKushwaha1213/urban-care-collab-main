@@ -110,9 +110,11 @@ const Issues = () => {
   const fetchIssues = async () => {
     setLoading(true);
     try {
+      // Fetch only active issues (exclude closed ones)
       const { data, error } = await supabase
         .from('issues')
         .select('*')
+        .neq('status', 'closed') // Exclude closed issues
         .order('created_at', { ascending: false });
 
       if (error) throw error;

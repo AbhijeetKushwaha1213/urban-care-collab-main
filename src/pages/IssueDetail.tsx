@@ -68,43 +68,45 @@ const IssueDetail = () => {
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
 
   // Fetch issue data and track views
-  useEffect(() => {
-    const fetchIssue = async () => {
-      if (!id) return;
+  const fetchIssue = async () => {
+    if (!id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('issues')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
       
-      try {
-        const { data, error } = await supabase
-          .from('issues')
-          .select('*')
-          .eq('id', id)
-          .single();
-
-        if (error) throw error;
-        
-        setIssue(data);
-        setUpvoteCount(data.volunteers_count || 0);
-        setViewCount(data.view_count || 0);
-        
-        // Increment view count
+      setIssue(data);
+      setUpvoteCount(data.volunteers_count || 0);
+      setViewCount(data.view_count || 0);
+      
+      // Increment view count only on first load
+      if (loading) {
         await incrementViewCount();
-        
-        // Check if user has upvoted (you can implement this with a separate table)
-        // For now, we'll use localStorage as a simple solution
-        const userUpvotes = JSON.parse(localStorage.getItem('userUpvotes') || '[]');
-        setUpvoted(userUpvotes.includes(id));
-        
-      } catch (error) {
-        console.error('Error fetching issue:', error);
-        toast({
-          title: "Error loading issue",
-          description: "Failed to load issue details",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
       }
-    };
+      
+      // Check if user has upvoted (you can implement this with a separate table)
+      // For now, we'll use localStorage as a simple solution
+      const userUpvotes = JSON.parse(localStorage.getItem('userUpvotes') || '[]');
+      setUpvoted(userUpvotes.includes(id));
+      
+    } catch (error) {
+      console.error('Error fetching issue:', error);
+      toast({
+        title: "Error loading issue",
+        description: "Failed to load issue details",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchIssue();
   }, [id, toast]);
 
@@ -740,7 +742,7 @@ const IssueDetail = () => {
           issueTitle={issue.title}
           onFeedbackSubmitted={() => {
             // Refresh issue data
-            fetchIssueData();
+            fetchIssue();
           }}
         />
       )}

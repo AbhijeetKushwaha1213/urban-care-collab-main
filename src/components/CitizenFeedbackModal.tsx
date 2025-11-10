@@ -57,6 +57,33 @@ const CitizenFeedbackModal: React.FC<CitizenFeedbackModalProps> = ({
             });
         }
 
+        // Send notification to all authority users
+        try {
+          // Get all authority users
+          const { data: authorities } = await supabase
+            .from('user_profiles')
+            .select('id')
+            .eq('user_type', 'authority');
+
+          if (authorities && authorities.length > 0) {
+            // Create notifications for all authorities
+            const notifications = authorities.map(auth => ({
+              user_id: auth.id,
+              title: '✅ Issue Resolved Successfully',
+              message: `Issue "${issueTitle}" has been marked as SATISFIED by the citizen and is now permanently closed.`,
+              type: 'success',
+              issue_id: issueId,
+              created_at: new Date().toISOString()
+            }));
+
+            await supabase
+              .from('notifications')
+              .insert(notifications);
+          }
+        } catch (notifError) {
+          console.warn('Failed to send notifications (non-critical):', notifError);
+        }
+
         alert('✅ Thank you for your feedback! This issue is now permanently closed.');
       } else {
         // Not satisfied - reopen issue
@@ -80,6 +107,51 @@ const CitizenFeedbackModal: React.FC<CitizenFeedbackModalProps> = ({
             user_id: user.id,
             content: `❌ Citizen Feedback: NOT SATISFIED\n\n${comment.trim() || 'The issue is not properly resolved. Please review and fix.'}`
           });
+
+        // Send notification to authorities and assigned worker
+        try {
+          // Get all authority users
+          const { data: authorities } = await supabase
+            .from('user_profiles')
+            .select('id')
+            .eq('user_type', 'authority');
+
+          // Get the assigned worker
+          const { data: issueData } = await supabase
+            .from('issues')
+            .select('assigned_to')
+            .eq('id', issueId)
+            .single();
+
+          const notificationRecipients = new Set();
+          
+          // Add authorities
+          if (authorities) {
+            authorities.forEach(auth => notificationRecipients.add(auth.id));
+          }
+          
+          // Add assigned worker
+          if (issueData?.assigned_to) {
+            notificationRecipients.add(issueData.assigned_to);
+          }
+
+          if (notificationRecipients.size > 0) {
+            const notifications = Array.from(notificationRecipients).map(userId => ({
+              user_id: userId,
+              title: '❌ Issue Reopened - Citizen Not Satisfied',
+              message: `Issue "${issueTitle}" has been marked as NOT SATISFIED by the citizen and needs rework. Feedback: "${comment.trim() || 'Not properly resolved'}"`,
+              type: 'warning',
+              issue_id: issueId,
+              created_at: new Date().toISOString()
+            }));
+
+            await supabase
+              .from('notifications')
+              .insert(notifications);
+          }
+        } catch (notifError) {
+          console.warn('Failed to send notifications (non-critical):', notifError);
+        }
 
         alert('❌ Your feedback has been recorded. The issue has been reopened for further action.');
       }
