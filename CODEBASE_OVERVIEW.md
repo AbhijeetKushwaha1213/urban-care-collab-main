@@ -14,7 +14,7 @@ This document provides a quick overview of the entire codebase structure and how
 ## 📁 Directory Structure
 
 ```
-civic-connect/
+nagar-setu/
 │
 ├── 📄 README.md                      # Start here!
 ├── 📄 REFACTORING_PLAN.md            # Refactoring strategy
