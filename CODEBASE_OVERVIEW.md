@@ -1,4 +1,4 @@
-# Civic Connect - Codebase Overview
+# Nagarsetu - Codebase Overview
 
 ## 📊 Project Status: REFACTORED & ORGANIZED ✅
 
