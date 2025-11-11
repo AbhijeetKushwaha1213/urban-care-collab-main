@@ -284,11 +284,27 @@ export default function ReportIssuePage() {
         imageUrls = await convertImagesToBase64(photoFiles);
       }
 
+      // Extract coordinates - either from state or parse from location string
+      let latitude = coordinates?.lat || null;
+      let longitude = coordinates?.lng || null;
+
+      // Fallback: If coordinates not in state, try to parse from location string
+      if (!latitude && !longitude && location) {
+        const coordsMatch = location.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+        if (coordsMatch) {
+          latitude = parseFloat(coordsMatch[1]);
+          longitude = parseFloat(coordsMatch[2]);
+          console.log('Extracted coordinates from location string:', { latitude, longitude });
+        }
+      }
+
       // Prepare issue data
       const issueData = {
         title: title,
         description: description,
         location: location,
+        latitude: latitude,
+        longitude: longitude,
         category: categoryMap[category] || "Other",
         image: imageUrls.length > 0 ? imageUrls[0] : null, // Primary image (first uploaded image)
         created_by: currentUser.id,
@@ -299,6 +315,17 @@ export default function ReportIssuePage() {
       };
 
       console.log('Submitting issue data:', issueData);
+      console.log('Coordinates being saved:', { latitude, longitude });
+
+      // Validate coordinates before submission
+      if (!latitude || !longitude) {
+        console.warn('⚠️ Warning: Issue being submitted without coordinates!');
+        toast({
+          title: "Location coordinates missing",
+          description: "The issue will be submitted, but navigation features may not work. Please use the map picker for better accuracy.",
+          variant: "destructive",
+        });
+      }
 
       // Submit issue to database
       const { data, error } = await supabase

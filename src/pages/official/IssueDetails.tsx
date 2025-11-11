@@ -274,32 +274,116 @@ const IssueDetails: React.FC = () => {
 
   const handleGetDirections = () => {
     if (!issue?.latitude || !issue?.longitude) {
-      alert('Location coordinates not available');
+      alert('❌ Location coordinates not available for this issue');
       return;
     }
 
-    // Open native maps app
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${issue.latitude},${issue.longitude}`;
-    window.open(url, '_blank');
+    // Get user's current location first
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userLat = position.coords.latitude;
+          const userLng = position.coords.longitude;
+          
+          // Open Google Maps with directions from current location to issue location
+          const url = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${issue.latitude},${issue.longitude}&travelmode=driving`;
+          window.open(url, '_blank');
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          
+          // If location access denied, open directions without origin (Google Maps will ask for location)
+          const url = `https://www.google.com/maps/dir/?api=1&destination=${issue.latitude},${issue.longitude}&travelmode=driving`;
+          window.open(url, '_blank');
+          
+          // Show helpful message
+          alert('💡 Tip: Allow location access for automatic route from your current location, or Google Maps will ask for your location.');
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0
+        }
+      );
+    } else {
+      // Browser doesn't support geolocation
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${issue.latitude},${issue.longitude}&travelmode=driving`;
+      window.open(url, '_blank');
+      alert('💡 Your browser doesn\'t support location services. Google Maps will ask for your location.');
+    }
   };
 
   const handleCopyLocation = async () => {
     if (!issue?.latitude || !issue?.longitude) {
-      alert('Location coordinates not available');
+      alert('❌ Location coordinates not available for this issue');
       return;
     }
 
-    const url = `https://www.google.com/maps?q=${issue.latitude},${issue.longitude}`;
+    // Create a Google Maps link with directions
+    const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${issue.latitude},${issue.longitude}&travelmode=driving`;
+    const simpleUrl = `https://www.google.com/maps?q=${issue.latitude},${issue.longitude}`;
     
     try {
       // Try modern clipboard API first
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(url);
-        alert('✅ Location link copied to clipboard!');
+        await navigator.clipboard.writeText(directionsUrl);
+        
+        // Show success message with both URLs
+        const message = `✅ Directions link copied to clipboard!\n\nYou can also use:\n📍 View location: ${simpleUrl}\n🧭 Get directions: ${directionsUrl}`;
+        
+        // Create a custom alert with better formatting
+        const alertDiv = document.createElement('div');
+        alertDiv.style.cssText = `
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: white;
+          padding: 24px;
+          border-radius: 12px;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+          z-index: 10000;
+          max-width: 500px;
+          width: 90%;
+        `;
+        
+        alertDiv.innerHTML = `
+          <div style="text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 16px;">✅</div>
+            <h3 style="margin: 0 0 16px 0; color: #10b981; font-size: 20px; font-weight: 600;">Link Copied!</h3>
+            <p style="margin: 0 0 16px 0; color: #6b7280; font-size: 14px;">The directions link has been copied to your clipboard.</p>
+            <div style="background: #f3f4f6; padding: 12px; border-radius: 8px; margin-bottom: 16px; text-align: left;">
+              <p style="margin: 0 0 8px 0; font-size: 12px; color: #6b7280; font-weight: 600;">📍 View Location:</p>
+              <p style="margin: 0 0 12px 0; font-size: 11px; color: #374151; word-break: break-all;">${simpleUrl}</p>
+              <p style="margin: 0 0 8px 0; font-size: 12px; color: #6b7280; font-weight: 600;">🧭 Get Directions:</p>
+              <p style="margin: 0; font-size: 11px; color: #374151; word-break: break-all;">${directionsUrl}</p>
+            </div>
+            <button onclick="this.parentElement.parentElement.remove()" style="
+              background: #3b82f6;
+              color: white;
+              border: none;
+              padding: 10px 24px;
+              border-radius: 8px;
+              font-size: 14px;
+              font-weight: 600;
+              cursor: pointer;
+            ">Got it!</button>
+          </div>
+        `;
+        
+        document.body.appendChild(alertDiv);
+        
+        // Auto-remove after 10 seconds
+        setTimeout(() => {
+          if (alertDiv.parentElement) {
+            alertDiv.remove();
+          }
+        }, 10000);
+        
       } else {
         // Fallback for older browsers
         const textArea = document.createElement('textarea');
-        textArea.value = url;
+        textArea.value = directionsUrl;
         textArea.style.position = 'fixed';
         textArea.style.left = '-999999px';
         document.body.appendChild(textArea);
@@ -308,10 +392,10 @@ const IssueDetails: React.FC = () => {
         
         try {
           document.execCommand('copy');
-          alert('✅ Location link copied to clipboard!');
+          alert(`✅ Link copied!\n\n📍 View: ${simpleUrl}\n\n🧭 Directions: ${directionsUrl}`);
         } catch (err) {
           console.error('Fallback copy failed:', err);
-          alert('❌ Failed to copy. Please copy manually: ' + url);
+          prompt('Copy this directions link:', directionsUrl);
         }
         
         document.body.removeChild(textArea);
@@ -319,7 +403,7 @@ const IssueDetails: React.FC = () => {
     } catch (err) {
       console.error('Copy failed:', err);
       // Show the URL so user can copy manually
-      prompt('Copy this location URL:', url);
+      prompt('Copy this directions link:', directionsUrl);
     }
   };
 
@@ -546,21 +630,57 @@ const IssueDetails: React.FC = () => {
               )}
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="space-y-3">
                 <button
                   onClick={handleGetDirections}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl font-semibold text-lg group"
                 >
-                  <Navigation className="w-5 h-5" />
-                  GET DIRECTIONS
+                  <Navigation className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                  <span>GET DIRECTIONS IN GOOGLE MAPS</span>
                 </button>
-                <button
-                  onClick={handleCopyLocation}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium"
-                >
-                  <LinkIcon className="w-5 h-5" />
-                  COPY LOCATION LINK
-                </button>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    onClick={handleCopyLocation}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium border-2 border-gray-200 dark:border-gray-600"
+                  >
+                    <LinkIcon className="w-5 h-5" />
+                    <span>Copy Link</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      if (issue?.latitude && issue?.longitude) {
+                        const url = `https://www.google.com/maps/search/?api=1&query=${issue.latitude},${issue.longitude}`;
+                        window.open(url, '_blank');
+                      }
+                    }}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium border-2 border-gray-200 dark:border-gray-600"
+                  >
+                    <MapPin className="w-5 h-5" />
+                    <span>View on Map</span>
+                  </button>
+                </div>
+                
+                {/* Helper Text */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center">
+                      <span className="text-blue-600 dark:text-blue-300 text-lg">💡</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                        Navigation Tips:
+                      </p>
+                      <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                        <li>• Click "Get Directions" to open Google Maps with turn-by-turn navigation</li>
+                        <li>• Allow location access for automatic route from your current position</li>
+                        <li>• Use "Copy Link" to share the location with your team</li>
+                        <li>• The map above shows the exact issue location</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

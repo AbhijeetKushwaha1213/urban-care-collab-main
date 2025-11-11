@@ -1,0 +1,123 @@
+================================================================================
+                    🗺️ QUICK FIX: Navigation Not Working
+================================================================================
+
+PROBLEM: "Location coordinates not available" error when clicking Get Directions
+
+CAUSE: Database missing latitude and longitude columns
+
+SOLUTION: Run this SQL script in Supabase (takes 30 seconds!)
+
+================================================================================
+                              STEP-BY-STEP FIX
+================================================================================
+
+1. Open Supabase Dashboard
+   → https://supabase.com/dashboard
+   → Select your project
+   → Click "SQL Editor" (left sidebar)
+
+2. Copy and paste this SQL:
+
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │                                                                     │
+   │  ALTER TABLE issues                                                 │
+   │  ADD COLUMN IF NOT EXISTS latitude DECIMAL(10, 8),                  │
+   │  ADD COLUMN IF NOT EXISTS longitude DECIMAL(11, 8);                 │
+   │                                                                     │
+   │  CREATE INDEX IF NOT EXISTS idx_issues_coordinates                  │
+   │  ON issues(latitude, longitude);                                    │
+   │                                                                     │
+   │  ALTER TABLE issues                                                 │
+   │  ADD CONSTRAINT IF NOT EXISTS check_latitude_range                  │
+   │  CHECK (latitude IS NULL OR (latitude >= -90 AND latitude <= 90)); │
+   │                                                                     │
+   │  ALTER TABLE issues                                                 │
+   │  ADD CONSTRAINT IF NOT EXISTS check_longitude_range                 │
+   │  CHECK (longitude IS NULL OR (longitude >= -180 AND longitude <=   │
+   │         180));                                                      │
+   │                                                                     │
+   └─────────────────────────────────────────────────────────────────────┘
+
+3. Click "RUN" button (or press Ctrl+Enter)
+
+4. Wait for "Success" message
+
+5. Verify it worked:
+
+   SELECT column_name FROM information_schema.columns 
+   WHERE table_name = 'issues' 
+   AND column_name IN ('latitude', 'longitude');
+
+   Should show:
+   ✓ latitude
+   ✓ longitude
+
+================================================================================
+                              THAT'S IT! ✅
+================================================================================
+
+NOW:
+✓ New issues will automatically save coordinates
+✓ "Get Directions" button will work
+✓ Navigation features fully functional
+
+TEST:
+1. Report a new issue (use "Pick on Map" or "Use Current Location")
+2. Open it in official portal
+3. Click "GET DIRECTIONS IN GOOGLE MAPS"
+4. Should open Google Maps with route! 🎉
+
+================================================================================
+                         FOR EXISTING ISSUES
+================================================================================
+
+If you have old issues without coordinates, run this AFTER the above:
+
+UPDATE issues
+SET 
+  latitude = CAST(SPLIT_PART(location, ',', 1) AS DECIMAL),
+  longitude = CAST(SPLIT_PART(location, ',', 2) AS DECIMAL)
+WHERE 
+  (latitude IS NULL OR longitude IS NULL)
+  AND location ~ '^-?\d+\.?\d*,\s*-?\d+\.?\d*$';
+
+This extracts coordinates from location strings like "28.6139, 77.2090"
+
+================================================================================
+                            TROUBLESHOOTING
+================================================================================
+
+❌ Error: "column already exists"
+   ✅ Good! It means columns were already added. Continue testing.
+
+❌ Error: "permission denied"
+   ✅ Make sure you're logged in as project owner in Supabase
+
+❌ Still showing "coordinates not available"
+   ✅ Check if issue has coordinates:
+      SELECT latitude, longitude FROM issues WHERE id = 'issue-id';
+   ✅ If NULL, the issue was created before the fix
+   ✅ Report a NEW issue to test
+
+================================================================================
+                          DETAILED DOCUMENTATION
+================================================================================
+
+For complete guide, see:
+→ DATABASE_SETUP_COORDINATES.md
+→ COORDINATES_FIX_COMPLETE.md
+→ docs/migration/add-coordinates-columns.sql
+
+================================================================================
+                              SUMMARY
+================================================================================
+
+Time Required: 30 seconds
+Difficulty: Easy (just copy-paste SQL)
+Risk: None (uses IF NOT EXISTS)
+Impact: Fixes navigation for all new issues
+
+Questions? Check the documentation files above!
+
+================================================================================
