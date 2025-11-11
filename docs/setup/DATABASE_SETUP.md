@@ -12,7 +12,7 @@ This guide will help you set up the Supabase database for Civic Connect.
 1. Go to [Supabase](https://supabase.com)
 2. Click "New Project"
 3. Fill in project details:
-   - Name: civic-connect
+   - Name: Nagar-setu
    - Database Password: (save this securely)
    - Region: Choose closest to your users
 4. Wait for project to be created (~2 minutes)
