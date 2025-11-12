@@ -37,7 +37,7 @@ interface IssueDetailModalProps {
   issue: Issue | null;
   isOpen: boolean;
   onClose: () => void;
-  onStatusUpdate: (issueId: string, newStatus: string) => void;
+  onStatusUpdate?: (issueId: string, newStatus: string) => void;
 }
 
 export default function IssueDetailModal({ 
@@ -168,27 +168,35 @@ export default function IssueDetailModal({
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <label className="text-xs font-medium text-gray-700 mb-2 block">
-                    Update Status
+                    Current Status
                   </label>
-                  <Select
-                    value={issue.status}
-                    onValueChange={(value) => onStatusUpdate(issue.id, value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="reported">Reported</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
-                      <SelectItem value="closed">Closed</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {onStatusUpdate ? (
+                    <Select
+                      value={issue.status}
+                      onValueChange={(value) => onStatusUpdate(issue.id, value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="reported">Reported</SelectItem>
+                        <SelectItem value="in-progress">In Progress</SelectItem>
+                        <SelectItem value="resolved">Resolved</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge className="text-sm py-2 px-4">
+                      {issue.status.replace('_', ' ').replace('-', ' ').toUpperCase()}
+                    </Badge>
+                  )}
                 </div>
-                <div className="flex flex-col items-center">
-                  <Clock className="h-8 w-8 text-gray-400 mb-1" />
-                  <span className="text-xs text-gray-500">Auto-save</span>
-                </div>
+                {onStatusUpdate && (
+                  <div className="flex flex-col items-center">
+                    <Clock className="h-8 w-8 text-gray-400 mb-1" />
+                    <span className="text-xs text-gray-500">Auto-save</span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

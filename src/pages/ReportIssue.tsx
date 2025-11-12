@@ -15,24 +15,20 @@ import { analyzeMultipleImages, combineImageAnalyses } from "@/services/visionSe
 import { checkForDuplicates, DuplicateDetectionResult } from "@/services/duplicateDetectionService";
 import LocationPicker from "@/components/LocationPicker";
 import DuplicateIssueModal from "@/components/DuplicateIssueModal";
-import MediaUploadComponent from "@/components/MediaUploadComponent";
+import ImageUploadComponent from "@/components/ImageUploadComponent";
 
-interface MediaFile {
+interface ImageFile {
   id: string;
   file: File;
-  type: 'image' | 'video' | 'audio';
   url: string;
   name: string;
   size: number;
-  duration?: number;
 }
 
 export default function ReportIssuePage() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
-  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
+  const [imageFiles, setImageFiles] = useState<ImageFile[]>([]);
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
@@ -53,14 +49,14 @@ export default function ReportIssuePage() {
     );
   }, []);
 
-  // Handle media change from MediaUploadComponent
-  const handleMediaChange = (files: MediaFile[]) => {
-    setMediaFiles(files);
+  // Handle image change from ImageUploadComponent
+  const handleImagesChange = (files: ImageFile[]) => {
+    setImageFiles(files);
     
     // Extract image files for AI analysis
-    const imageFiles = files.filter(f => f.type === 'image').map(f => f.file);
-    if (imageFiles.length > 0) {
-      analyzePhotosWithAI(imageFiles);
+    const imageFilesArray = files.map(f => f.file);
+    if (imageFilesArray.length > 0) {
+      analyzePhotosWithAI(imageFilesArray);
     }
   };
 
@@ -230,9 +226,8 @@ export default function ReportIssuePage() {
 
       // Convert images for duplicate checking
       let imageBase64: string | undefined;
-      const imageFiles = mediaFiles.filter(f => f.type === 'image').map(f => f.file);
       if (imageFiles.length > 0) {
-        const imageUrls = await convertImagesToBase64(imageFiles);
+        const imageUrls = await convertImagesToBase64(imageFiles.map(f => f.file));
         imageBase64 = imageUrls[0];
       }
 
@@ -298,22 +293,15 @@ export default function ReportIssuePage() {
         others: "Other"
       };
 
-      // Convert media files if any
+      // Convert images if any
       let imageUrls: string[] = [];
-      const imageFiles = mediaFiles.filter(f => f.type === 'image').map(f => f.file);
       if (imageFiles.length > 0) {
         toast({
           title: "Processing images...",
           description: "Please wait while we process your photos.",
         });
-        imageUrls = await convertImagesToBase64(imageFiles);
+        imageUrls = await convertImagesToBase64(imageFiles.map(f => f.file));
       }
-
-      // Handle video files (store URLs for now)
-      const videoFiles = mediaFiles.filter(f => f.type === 'video');
-      
-      // Handle audio files (store URLs for now)
-      const audioFiles = mediaFiles.filter(f => f.type === 'audio');
 
       // Extract coordinates - either from state or parse from location string
       let latitude = coordinates?.lat || null;
@@ -343,10 +331,6 @@ export default function ReportIssuePage() {
         comments_count: 0,
         volunteers_count: 0,
         created_at: new Date().toISOString(),
-        // Add metadata about additional media
-        has_video: videoFiles.length > 0,
-        has_audio: audioFiles.length > 0,
-        media_count: mediaFiles.length,
       };
 
       console.log('Submitting issue data:', issueData);
@@ -382,7 +366,7 @@ export default function ReportIssuePage() {
       setLocation("");
       setCoordinates(null);
       setAiSuggestion(null);
-      setMediaFiles([]);
+      setImageFiles([]);
 
       // Redirect to issues page after 2 seconds
       setTimeout(() => {
@@ -436,14 +420,12 @@ export default function ReportIssuePage() {
             Report a Civic Issue
           </motion.h1>
 
-          {/* Enhanced Media Upload Section */}
+          {/* Image Upload Section */}
           <div className="mb-6">
-            <MediaUploadComponent
-              onMediaChange={handleMediaChange}
+            <ImageUploadComponent
+              onImagesChange={handleImagesChange}
               maxImages={5}
-              maxVideos={2}
-              maxAudioFiles={3}
-              maxFileSize={50}
+              maxFileSize={10}
             />
           </div>
 
@@ -451,12 +433,12 @@ export default function ReportIssuePage() {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <label className="text-gray-300 font-medium">Description</label>
-              {mediaFiles.filter(f => f.type === 'image').length > 0 && (
+              {imageFiles.length > 0 && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => analyzePhotosWithAI(mediaFiles.filter(f => f.type === 'image').map(f => f.file))}
+                  onClick={() => analyzePhotosWithAI(imageFiles.map(f => f.file))}
                   disabled={isAnalyzing}
                   className="text-blue-400 hover:text-blue-300 border-gray-600 hover:border-blue-400"
                 >

@@ -79,7 +79,7 @@ const IssueDetails: React.FC = () => {
     }
   };
 
-  const handleMarkInProgress = async () => {
+  const handleStatusChange = async (newStatus: string) => {
     if (!issue) return;
     setActionLoading(true);
 
@@ -87,7 +87,7 @@ const IssueDetails: React.FC = () => {
       const { error } = await supabase
         .from('issues')
         .update({ 
-          status: 'in_progress',
+          status: newStatus,
           updated_at: new Date().toISOString()
         })
         .eq('id', issue.id);
@@ -95,16 +95,28 @@ const IssueDetails: React.FC = () => {
       if (error) throw error;
 
       // Add automatic note
+      const statusMessages = {
+        'in_progress': 'marked this issue as In Progress',
+        'resolved': 'marked this issue as Resolved',
+        'pending_approval': 'submitted this issue for approval',
+        'closed': 'closed this issue',
+        'reported': 'reopened this issue'
+      };
+
       await supabase
         .from('issue_internal_notes')
         .insert({
           issue_id: issue.id,
           official_id: (await supabase.auth.getUser()).data.user?.id,
-          note: 'Issue acknowledged and marked as in-progress.'
+          note: statusMessages[newStatus] || `Status changed to ${newStatus}`
         });
 
-      fetchIssueDetails();
+      // Update local state
+      setIssue({ ...issue, status: newStatus });
+      
       fetchInternalNotes();
+      
+      alert(`Issue status updated to ${newStatus.replace('_', ' ').toUpperCase()}`);
     } catch (error) {
       console.error('Error updating status:', error);
       alert('Failed to update status. Please try again.');
@@ -700,35 +712,52 @@ const IssueDetails: React.FC = () => {
                 </p>
               </div>
 
-              {/* Action Buttons based on status */}
-              {issue.status === 'assigned' && (
-                <button
-                  onClick={handleMarkInProgress}
+              {/* Status Update Section */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Update Issue Status
+                </label>
+                <select
+                  value={issue.status}
+                  onChange={(e) => handleStatusChange(e.target.value)}
                   disabled={actionLoading}
-                  className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-semibold text-lg disabled:opacity-50"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Clock className="w-6 h-6" />
-                  MARK AS 'IN-PROGRESS'
-                </button>
-              )}
+                  <option value="reported">📋 Reported</option>
+                  <option value="assigned">👤 Assigned</option>
+                  <option value="in_progress">⏳ In Progress</option>
+                  <option value="resolved">✅ Resolved</option>
+                  <option value="pending_approval">⏰ Pending Approval</option>
+                  <option value="closed">🔒 Closed</option>
+                </select>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Current status: <span className="font-semibold">{issue.status.replace('_', ' ').toUpperCase()}</span>
+                </p>
+              </div>
 
-              {issue.status === 'in_progress' && (
-                <button
-                  onClick={handleMarkResolved}
-                  className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-lg"
-                >
-                  <CheckCircle className="w-6 h-6" />
-                  MARK AS 'RESOLVED'
-                </button>
-              )}
-
-              {issue.status === 'pending_approval' && (
-                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                  <p className="text-green-800 dark:text-green-300 font-medium">
-                    ✓ This issue has been submitted for admin approval
-                  </p>
-                </div>
-              )}
+              {/* Quick Action Buttons */}
+              <div className="grid grid-cols-2 gap-3">
+                {issue.status !== 'in_progress' && (
+                  <button
+                    onClick={() => handleStatusChange('in_progress')}
+                    disabled={actionLoading}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium disabled:opacity-50"
+                  >
+                    <Clock className="w-5 h-5" />
+                    In Progress
+                  </button>
+                )}
+                
+                {issue.status !== 'resolved' && (
+                  <button
+                    onClick={handleMarkResolved}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                  >
+                    <CheckCircle className="w-5 h-5" />
+                    Mark Resolved
+                  </button>
+                )}
+              </div>
 
               {/* Add Internal Note */}
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">

@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
-import { getDashboardStats, getIssuesWithPriority, updateIssueStatus as updateStatus } from '@/services/authorityService';
+import { getDashboardStats, getIssuesWithPriority } from '@/services/authorityService';
 import NotificationCenter from '@/components/NotificationCenter';
 import IssueDetailModal from '@/components/IssueDetailModal';
 import IssueMap from '@/components/IssueMap';
@@ -277,41 +277,8 @@ export default function AuthorityDashboard() {
     }
   };
 
-  const updateIssueStatus = async (issueId: string, newStatus: string) => {
-    try {
-      console.log('Attempting to update issue:', issueId, 'to status:', newStatus);
-      await updateStatus(issueId, newStatus);
-
-      // Update local state
-      setIssues(prev => prev.map(issue => 
-        issue.id === issueId ? { ...issue, status: newStatus } : issue
-      ));
-
-      toast({
-        title: "Status Updated",
-        description: `Issue status changed to ${newStatus}`,
-      });
-
-      // Refresh stats
-      fetchDashboardData();
-    } catch (error: any) {
-      console.error('Error updating issue status:', error);
-      
-      let errorMessage = "Failed to update issue status";
-      if (error?.message) {
-        errorMessage += `: ${error.message}`;
-      }
-      if (error?.code) {
-        errorMessage += ` (Code: ${error.code})`;
-      }
-      
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    }
-  };
+  // Status updates are now handled by workers in the Official Portal
+  // Authorities can only view status and assign work
 
   const handleViewIssue = (issue: Issue) => {
     setSelectedIssue(issue);
@@ -761,20 +728,11 @@ export default function AuthorityDashboard() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2 ml-4">
-                              <Select
-                                value={issue.status}
-                                onValueChange={(value) => updateIssueStatus(issue.id, value)}
-                              >
-                                <SelectTrigger className="w-[140px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="reported">Reported</SelectItem>
-                                  <SelectItem value="in-progress">In Progress</SelectItem>
-                                  <SelectItem value="resolved">Resolved</SelectItem>
-                                  <SelectItem value="closed">Closed</SelectItem>
-                                </SelectContent>
-                              </Select>
+                              {/* Read-only Status Badge */}
+                              <Badge className={getStatusColor(issue.status)}>
+                                {issue.status.replace('_', ' ').replace('-', ' ').toUpperCase()}
+                              </Badge>
+                              
                               <Button 
                                 variant="outline" 
                                 size="sm"
@@ -793,18 +751,6 @@ export default function AuthorityDashboard() {
                                 >
                                   <UserPlus className="h-4 w-4 mr-1" />
                                   Assign Work
-                                </Button>
-                              )}
-                              
-                              {issue.status === 'in-progress' && issue.assigned_to === currentUser?.id && (
-                                <Button 
-                                  variant="default" 
-                                  size="sm"
-                                  onClick={() => updateIssueStatus(issue.id, 'resolved')}
-                                  className="bg-green-600 hover:bg-green-700"
-                                >
-                                  <CheckCircle className="h-4 w-4 mr-1" />
-                                  Mark Resolved
                                 </Button>
                               )}
                             </div>
@@ -962,7 +908,6 @@ export default function AuthorityDashboard() {
           setIssueDetailOpen(false);
           setSelectedIssue(null);
         }}
-        onStatusUpdate={updateIssueStatus}
       />
 
       {/* Profile Modal */}
