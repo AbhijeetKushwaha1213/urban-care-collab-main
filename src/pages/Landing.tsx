@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { toast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { supabase } from '@/lib/supabase';
+import CompactResolvedShowcase from '@/components/CompactResolvedShowcase';
 
 // Real-Time Statistics Component
 const RealTimeStats = () => {
@@ -396,24 +397,8 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* Community / Testimonials */}
-        <section className="py-20 px-6 bg-black/20 backdrop-blur-sm">
-        <h2 className="text-3xl font-bold text-center mb-12 text-white drop-shadow-lg">Hear From Our Community</h2>
-        <div className="flex flex-col md:flex-row justify-center gap-8 max-w-5xl mx-auto">
-          {["Empowered Citizens", "Responsive Officials", "Smarter Cities"].map((title, i) => (
-            <motion.div 
-              key={i} 
-              whileHover={{ scale: 1.05 }} 
-              className="bg-white/15 p-6 rounded-2xl text-center shadow-md w-full md:w-1/3 backdrop-blur-md border border-white/20"
-            >
-              <h3 className="text-xl font-semibold mb-2 text-pink-400">{title}</h3>
-              <p className="text-white/90 text-sm">
-                Nagar Setu bridges people and governance through technology, transparency, and trust.
-              </p>
-            </motion.div>
-          ))}
-        </div>
-      </section>
+        {/* Resolved Issues Showcase - Compact Grid View */}
+        <CompactResolvedShowcase />
 
       {/* CTA Section */}
       <section className="text-center py-20 bg-white/15 backdrop-blur-md border-t border-white/20">
