@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,7 +9,9 @@ import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { toast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { supabase } from '@/lib/supabase';
-import CompactResolvedShowcase from '@/components/CompactResolvedShowcase';
+
+// Lazy load the showcase component for better initial load performance
+const CompactResolvedShowcase = lazy(() => import('@/components/CompactResolvedShowcase'));
 
 // Real-Time Statistics Component
 const RealTimeStats = () => {
@@ -21,111 +23,51 @@ const RealTimeStats = () => {
   });
 
   useEffect(() => {
+    // Initial fetch
     fetchStats();
 
-    // Set up real-time subscription for live updates
-    const subscription = supabase
-      .channel('landing-stats')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'issues'
-        }, 
-        () => {
-          // Refresh stats when issues table changes
-          fetchStats();
-        }
-      )
-      .subscribe();
-
-    // Refresh stats every 30 seconds
-    const interval = setInterval(fetchStats, 30000);
+    // Only refresh stats every 60 seconds (reduced from 30)
+    const interval = setInterval(fetchStats, 60000);
 
     return () => {
-      subscription.unsubscribe();
       clearInterval(interval);
     };
   }, []);
 
   const fetchStats = async () => {
     try {
-      console.log('Fetching landing page statistics...');
-      
-      // Fetch total issues count
-      const { count: totalCount, error: totalError } = await supabase
-        .from('issues')
-        .select('*', { count: 'exact', head: true });
+      // Optimize: Fetch all data in parallel instead of sequentially
+      const [totalResult, resolvedResult, citizensResult] = await Promise.all([
+        supabase.from('issues').select('*', { count: 'exact', head: true }),
+        supabase.from('issues').select('*', { count: 'exact', head: true }).eq('status', 'resolved'),
+        supabase.from('issues').select('created_by')
+      ]);
 
-      if (totalError) {
-        console.error('Error fetching total issues:', totalError);
-        throw totalError;
-      }
+      // Check for errors
+      if (totalResult.error) throw totalResult.error;
+      if (resolvedResult.error) throw resolvedResult.error;
+      if (citizensResult.error) throw citizensResult.error;
 
-      console.log('Total issues count:', totalCount);
-
-      // Fetch resolved issues count
-      const { count: resolvedCount, error: resolvedError } = await supabase
-        .from('issues')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'resolved');
-
-      if (resolvedError) {
-        console.error('Error fetching resolved issues:', resolvedError);
-        throw resolvedError;
-      }
-
-      console.log('Resolved issues count:', resolvedCount);
-
-      // Fetch active citizens count (unique users who created issues)
-      const { data: citizensData, error: citizensError } = await supabase
-        .from('issues')
-        .select('created_by');
-
-      if (citizensError) {
-        console.error('Error fetching citizens data:', citizensError);
-        throw citizensError;
-      }
-
-      // Count unique citizens (filter out null values)
+      // Count unique citizens
       const uniqueCitizens = new Set(
-        citizensData
+        citizensResult.data
           ?.map(issue => issue.created_by)
           .filter(id => id !== null && id !== undefined) || []
       ).size;
 
-      console.log('Active citizens count:', uniqueCitizens);
-
       setStats({
-        totalIssues: totalCount || 0,
-        resolvedIssues: resolvedCount || 0,
+        totalIssues: totalResult.count || 0,
+        resolvedIssues: resolvedResult.count || 0,
         activeCitizens: uniqueCitizens || 0,
         loading: false
       });
-
-      console.log('✅ Statistics updated successfully');
     } catch (error: any) {
-      console.error('❌ Error fetching stats:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        details: error?.details,
-        hint: error?.hint,
-        code: error?.code
-      });
-      
-      // Set stats to 0 instead of keeping old values
+      // Silently fail and show default stats
       setStats({
         totalIssues: 0,
         resolvedIssues: 0,
         activeCitizens: 0,
         loading: false
-      });
-
-      // Show user-friendly error
-      toast({
-        title: "Unable to load statistics",
-        description: "Statistics will update automatically when available.",
-        variant: "destructive",
       });
     }
   };
@@ -398,7 +340,16 @@ export default function Landing() {
         </section>
 
         {/* Resolved Issues Showcase - Compact Grid View */}
-        <CompactResolvedShowcase />
+        <Suspense fallback={
+          <div className="py-16 px-6 bg-black/20 backdrop-blur-sm">
+            <div className="max-w-7xl mx-auto text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+              <p className="text-white/80">Loading success stories...</p>
+            </div>
+          </div>
+        }>
+          <CompactResolvedShowcase />
+        </Suspense>
 
       {/* CTA Section */}
       <section className="text-center py-20 bg-white/15 backdrop-blur-md border-t border-white/20">
