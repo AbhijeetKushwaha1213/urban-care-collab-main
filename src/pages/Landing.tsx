@@ -49,12 +49,19 @@ const RealTimeStats = () => {
 
   const fetchStats = async () => {
     try {
+      console.log('Fetching landing page statistics...');
+      
       // Fetch total issues count
       const { count: totalCount, error: totalError } = await supabase
         .from('issues')
         .select('*', { count: 'exact', head: true });
 
-      if (totalError) throw totalError;
+      if (totalError) {
+        console.error('Error fetching total issues:', totalError);
+        throw totalError;
+      }
+
+      console.log('Total issues count:', totalCount);
 
       // Fetch resolved issues count
       const { count: resolvedCount, error: resolvedError } = await supabase
@@ -62,17 +69,31 @@ const RealTimeStats = () => {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'resolved');
 
-      if (resolvedError) throw resolvedError;
+      if (resolvedError) {
+        console.error('Error fetching resolved issues:', resolvedError);
+        throw resolvedError;
+      }
+
+      console.log('Resolved issues count:', resolvedCount);
 
       // Fetch active citizens count (unique users who created issues)
       const { data: citizensData, error: citizensError } = await supabase
         .from('issues')
         .select('created_by');
 
-      if (citizensError) throw citizensError;
+      if (citizensError) {
+        console.error('Error fetching citizens data:', citizensError);
+        throw citizensError;
+      }
 
-      // Count unique citizens
-      const uniqueCitizens = new Set(citizensData?.map(issue => issue.created_by) || []).size;
+      // Count unique citizens (filter out null values)
+      const uniqueCitizens = new Set(
+        citizensData
+          ?.map(issue => issue.created_by)
+          .filter(id => id !== null && id !== undefined) || []
+      ).size;
+
+      console.log('Active citizens count:', uniqueCitizens);
 
       setStats({
         totalIssues: totalCount || 0,
@@ -80,9 +101,31 @@ const RealTimeStats = () => {
         activeCitizens: uniqueCitizens || 0,
         loading: false
       });
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-      setStats(prev => ({ ...prev, loading: false }));
+
+      console.log('✅ Statistics updated successfully');
+    } catch (error: any) {
+      console.error('❌ Error fetching stats:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      });
+      
+      // Set stats to 0 instead of keeping old values
+      setStats({
+        totalIssues: 0,
+        resolvedIssues: 0,
+        activeCitizens: 0,
+        loading: false
+      });
+
+      // Show user-friendly error
+      toast({
+        title: "Unable to load statistics",
+        description: "Statistics will update automatically when available.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -116,7 +159,7 @@ const RealTimeStats = () => {
                     </div>
                   ) : (
                     <h2 className="text-6xl font-bold text-yellow-300 drop-shadow-lg">
-                      {formatNumber(stats.totalIssues)}
+                      {stats.totalIssues === 0 ? '0' : formatNumber(stats.totalIssues)}
                     </h2>
                   )}
                 </div>
@@ -145,7 +188,7 @@ const RealTimeStats = () => {
                     </div>
                   ) : (
                     <h2 className="text-6xl font-bold text-green-300 drop-shadow-lg">
-                      {formatNumber(stats.resolvedIssues)}
+                      {stats.resolvedIssues === 0 ? '0' : formatNumber(stats.resolvedIssues)}
                     </h2>
                   )}
                 </div>
@@ -174,7 +217,7 @@ const RealTimeStats = () => {
                     </div>
                   ) : (
                     <h2 className="text-6xl font-bold text-blue-300 drop-shadow-lg">
-                      {formatNumber(stats.activeCitizens)}+
+                      {stats.activeCitizens === 0 ? '0' : formatNumber(stats.activeCitizens)}+
                     </h2>
                   )}
                 </div>

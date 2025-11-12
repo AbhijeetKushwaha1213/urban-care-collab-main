@@ -15,12 +15,24 @@ import { analyzeMultipleImages, combineImageAnalyses } from "@/services/visionSe
 import { checkForDuplicates, DuplicateDetectionResult } from "@/services/duplicateDetectionService";
 import LocationPicker from "@/components/LocationPicker";
 import DuplicateIssueModal from "@/components/DuplicateIssueModal";
+import MediaUploadComponent from "@/components/MediaUploadComponent";
+
+interface MediaFile {
+  id: string;
+  file: File;
+  type: 'image' | 'video' | 'audio';
+  url: string;
+  name: string;
+  size: number;
+  duration?: number;
+}
 
 export default function ReportIssuePage() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
@@ -40,6 +52,17 @@ export default function ReportIssuePage() {
       () => setLocation("Unable to detect location")
     );
   }, []);
+
+  // Handle media change from MediaUploadComponent
+  const handleMediaChange = (files: MediaFile[]) => {
+    setMediaFiles(files);
+    
+    // Extract image files for AI analysis
+    const imageFiles = files.filter(f => f.type === 'image').map(f => f.file);
+    if (imageFiles.length > 0) {
+      analyzePhotosWithAI(imageFiles);
+    }
+  };
 
   // Handle multiple photo uploads with AI analysis
   const handlePhotoChange = async (e, captureType = 'file') => {
@@ -207,8 +230,9 @@ export default function ReportIssuePage() {
 
       // Convert images for duplicate checking
       let imageBase64: string | undefined;
-      if (photoFiles.length > 0) {
-        const imageUrls = await convertImagesToBase64(photoFiles);
+      const imageFiles = mediaFiles.filter(f => f.type === 'image').map(f => f.file);
+      if (imageFiles.length > 0) {
+        const imageUrls = await convertImagesToBase64(imageFiles);
         imageBase64 = imageUrls[0];
       }
 
@@ -274,15 +298,22 @@ export default function ReportIssuePage() {
         others: "Other"
       };
 
-      // Convert images if any
+      // Convert media files if any
       let imageUrls: string[] = [];
-      if (photoFiles.length > 0) {
+      const imageFiles = mediaFiles.filter(f => f.type === 'image').map(f => f.file);
+      if (imageFiles.length > 0) {
         toast({
           title: "Processing images...",
           description: "Please wait while we process your photos.",
         });
-        imageUrls = await convertImagesToBase64(photoFiles);
+        imageUrls = await convertImagesToBase64(imageFiles);
       }
+
+      // Handle video files (store URLs for now)
+      const videoFiles = mediaFiles.filter(f => f.type === 'video');
+      
+      // Handle audio files (store URLs for now)
+      const audioFiles = mediaFiles.filter(f => f.type === 'audio');
 
       // Extract coordinates - either from state or parse from location string
       let latitude = coordinates?.lat || null;
@@ -298,7 +329,7 @@ export default function ReportIssuePage() {
         }
       }
 
-      // Prepare issue data
+      // Prepare issue data with media information
       const issueData = {
         title: title,
         description: description,
@@ -312,6 +343,10 @@ export default function ReportIssuePage() {
         comments_count: 0,
         volunteers_count: 0,
         created_at: new Date().toISOString(),
+        // Add metadata about additional media
+        has_video: videoFiles.length > 0,
+        has_audio: audioFiles.length > 0,
+        media_count: mediaFiles.length,
       };
 
       console.log('Submitting issue data:', issueData);
@@ -347,7 +382,7 @@ export default function ReportIssuePage() {
       setLocation("");
       setCoordinates(null);
       setAiSuggestion(null);
-      clearAllPhotos();
+      setMediaFiles([]);
 
       // Redirect to issues page after 2 seconds
       setTimeout(() => {
@@ -401,124 +436,27 @@ export default function ReportIssuePage() {
             Report a Civic Issue
           </motion.h1>
 
-          {/* Enhanced Photo Upload Section */}
+          {/* Enhanced Media Upload Section */}
           <div className="mb-6">
-            <label className="block mb-3 text-gray-300 font-medium">
-              Add Photos ({photos.length}/5)
-            </label>
-            
-            {/* Photo Upload Options */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-              {/* Live Camera Capture */}
-              <label className="cursor-pointer flex flex-col items-center gap-2 bg-blue-600 hover:bg-blue-700 p-4 rounded-lg text-white text-sm transition-colors">
-                <Camera className="w-6 h-6" />
-                <span className="text-center">Live Capture</span>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  capture="environment"
-                  multiple
-                  onChange={(e) => handlePhotoChange(e, 'camera')} 
-                  className="hidden"
-                  disabled={photos.length >= 5}
-                />
-              </label>
-
-              {/* File Upload */}
-              <label className="cursor-pointer flex flex-col items-center gap-2 bg-green-600 hover:bg-green-700 p-4 rounded-lg text-white text-sm transition-colors">
-                <FileText className="w-6 h-6" />
-                <span className="text-center">Upload Files</span>
-                <input 
-                  type="file" 
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => handlePhotoChange(e, 'file')} 
-                  className="hidden"
-                  disabled={photos.length >= 5}
-                />
-              </label>
-
-              {/* Gallery Selection */}
-              <label className="cursor-pointer flex flex-col items-center gap-2 bg-purple-600 hover:bg-purple-700 p-4 rounded-lg text-white text-sm transition-colors">
-                <ImageIcon className="w-6 h-6" />
-                <span className="text-center">From Gallery</span>
-                <input 
-                  type="file" 
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => handlePhotoChange(e, 'gallery')} 
-                  className="hidden"
-                  disabled={photos.length >= 5}
-                />
-              </label>
-            </div>
-
-            {/* Photo Preview Grid */}
-            {photos.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-300">
-                    Uploaded Photos ({photos.length})
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={clearAllPhotos}
-                    className="text-red-400 hover:text-red-300 border-gray-600"
-                  >
-                    Clear All
-                  </Button>
-                </div>
-                
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {photos.map((photoUrl, index) => (
-                    <div key={index} className="relative group">
-                      <img 
-                        src={photoUrl} 
-                        alt={`Preview ${index + 1}`}
-                        className="w-full h-24 sm:h-32 rounded-lg object-cover border-2 border-gray-600 hover:border-blue-400 transition-colors" 
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removePhoto(index)}
-                        className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                      <div className="absolute bottom-1 left-1 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
-                        {index + 1}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                <p className="text-xs text-gray-400 text-center">
-                  Click on photos to view larger. Use the X button to remove individual photos.
-                </p>
-              </div>
-            )}
-
-            {photos.length === 0 && (
-              <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center">
-                <Camera className="w-12 h-12 text-gray-500 mx-auto mb-2" />
-                <p className="text-gray-400 text-sm">
-                  No photos added yet. Choose from the options above to add up to 5 photos.
-                </p>
-              </div>
-            )}
+            <MediaUploadComponent
+              onMediaChange={handleMediaChange}
+              maxImages={5}
+              maxVideos={2}
+              maxAudioFiles={3}
+              maxFileSize={50}
+            />
           </div>
 
           {/* Description */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <label className="text-gray-300 font-medium">Description</label>
-              {photos.length > 0 && (
+              {mediaFiles.filter(f => f.type === 'image').length > 0 && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => analyzePhotosWithAI(photoFiles)}
+                  onClick={() => analyzePhotosWithAI(mediaFiles.filter(f => f.type === 'image').map(f => f.file))}
                   disabled={isAnalyzing}
                   className="text-blue-400 hover:text-blue-300 border-gray-600 hover:border-blue-400"
                 >

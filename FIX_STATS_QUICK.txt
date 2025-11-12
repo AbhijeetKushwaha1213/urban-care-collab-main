@@ -1,0 +1,113 @@
+================================================================================
+                    🔧 FIX LANDING PAGE STATISTICS
+================================================================================
+
+PROBLEM: Landing page shows no statistics (blank or 0)
+
+CAUSE: Row Level Security (RLS) blocking anonymous access to issues table
+
+SOLUTION: Run this SQL in Supabase (30 seconds!)
+
+================================================================================
+                              COPY THIS SQL
+================================================================================
+
+ALTER TABLE issues ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "public_read_issues" ON issues;
+
+CREATE POLICY "public_read_issues"
+ON issues
+FOR SELECT
+TO anon, authenticated
+USING (true);
+
+SELECT 
+  COUNT(*) as total_issues,
+  COUNT(*) FILTER (WHERE status = 'resolved') as resolved_issues,
+  COUNT(DISTINCT created_by) as active_citizens
+FROM issues;
+
+================================================================================
+                              HOW TO RUN
+================================================================================
+
+1. Go to https://supabase.com/dashboard
+2. Select your project
+3. Click "SQL Editor" (left sidebar)
+4. Click "New Query"
+5. Copy the SQL above
+6. Paste it
+7. Click "RUN"
+
+================================================================================
+                              VERIFY IT WORKS
+================================================================================
+
+The last SELECT should show:
+┌───────────────┬──────────────────┬──────────────────┐
+│ total_issues  │ resolved_issues  │ active_citizens  │
+├───────────────┼──────────────────┼──────────────────┤
+│ 5             │ 2                │ 3                │
+└───────────────┴──────────────────┴──────────────────┘
+
+(Your numbers will vary)
+
+================================================================================
+                              TEST THE FIX
+================================================================================
+
+1. Refresh your landing page
+2. Statistics should now appear!
+3. Open browser console (F12) to see logs:
+   - "Fetching landing page statistics..."
+   - "Total issues count: X"
+   - "✅ Statistics updated successfully"
+
+================================================================================
+                              TROUBLESHOOTING
+================================================================================
+
+❌ Still showing 0?
+   → Check browser console (F12) for errors
+   → Make sure you have issues in the database:
+     SELECT COUNT(*) FROM issues;
+
+❌ Error: "policy already exists"
+   → Good! The policy was already there
+   → Try the DROP POLICY command first, then CREATE again
+
+❌ Error: "permission denied"
+   → Make sure you're logged in as project owner
+
+================================================================================
+                              WHAT THIS DOES
+================================================================================
+
+✓ Enables Row Level Security on issues table
+✓ Drops any old conflicting policies
+✓ Creates new policy allowing public read access
+✓ Tests that the query works
+
+This allows the landing page to fetch statistics without authentication.
+
+================================================================================
+                              FILES CREATED
+================================================================================
+
+→ FIX_LANDING_STATS_NOW.sql (the SQL script)
+→ LANDING_PAGE_STATS_FIX.md (detailed guide)
+→ FIX_STATS_QUICK.txt (this file)
+
+================================================================================
+                              SUMMARY
+================================================================================
+
+Time: 30 seconds
+Difficulty: Easy (just copy-paste SQL)
+Risk: None (only adds read permission)
+Impact: Statistics will appear on landing page
+
+Questions? Check LANDING_PAGE_STATS_FIX.md for detailed troubleshooting!
+
+================================================================================
