@@ -110,11 +110,11 @@ const Issues = () => {
   const fetchIssues = async () => {
     setLoading(true);
     try {
-      // Fetch only active issues (exclude closed ones)
+      // Fetch only active issues (exclude resolved and closed ones)
       const { data, error } = await supabase
         .from('issues')
         .select('*')
-        .neq('status', 'closed') // Exclude closed issues
+        .not('status', 'in', '("resolved","closed","pending_approval")') // Exclude resolved, closed, and pending approval issues
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -179,18 +179,71 @@ const Issues = () => {
         (payload) => {
           console.log('Real-time issue update:', payload);
           if (payload.new) {
-            setIssues(prevIssues => 
-              prevIssues.map(issue => 
-                issue.id === payload.new.id 
-                  ? {
-                      ...issue,
-                      volunteersCount: payload.new.volunteers_count || 0,
-                      commentsCount: payload.new.comments_count || 0,
-                      status: payload.new.status
-                    }
-                  : issue
-              )
-            );
+            const newStatus = payload.new.status;
+            
+            // If issue is resolved, closed, or pending approval, remove it from the list
+            if (newStatus === 'resolved' || newStatus === 'closed' || newStatus === 'pending_approval') {
+              console.log(`Issue ${payload.new.id} status changed to ${newStatus}, removing from list`);
+              setIssues(prevIssues => 
+                prevIssues.filter(issue => issue.id !== payload.new.id)
+              );
+              
+              // Show toast notification
+              toast({
+                title: "Issue Updated",
+                description: `An issue has been marked as ${newStatus.replace('_', ' ')} and removed from active issues`,
+              });
+            } else {
+              // Otherwise, update the issue in the list
+              setIssues(prevIssues => 
+                prevIssues.map(issue => 
+                  issue.id === payload.new.id 
+                    ? {
+                        ...issue,
+                        volunteersCount: payload.new.volunteers_count || 0,
+                        commentsCount: payload.new.comments_count || 0,
+                        status: payload.new.status
+                      }
+                    : issue
+                )
+              );
+            }
+          }
+        }
+      )
+      .on('postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'issues'
+        },
+        (payload) => {
+          console.log('New issue created:', payload);
+          if (payload.new) {
+            const newIssue = payload.new;
+            
+            // Only add if it's not resolved, closed, or pending approval
+            if (newIssue.status !== 'resolved' && newIssue.status !== 'closed' && newIssue.status !== 'pending_approval') {
+              const transformedIssue = {
+                id: newIssue.id,
+                title: newIssue.title,
+                description: newIssue.description,
+                location: newIssue.location,
+                category: newIssue.category,
+                image: newIssue.image || "https://images.unsplash.com/photo-1604357209793-fca5dca89f97?q=80&w=800&auto=format&fit=crop",
+                date: formatDate(newIssue.created_at),
+                commentsCount: newIssue.comments_count || 0,
+                volunteersCount: newIssue.volunteers_count || 0,
+                status: newIssue.status
+              };
+              
+              setIssues(prevIssues => [transformedIssue, ...prevIssues]);
+              
+              toast({
+                title: "New Issue Reported",
+                description: "A new issue has been added to the community",
+              });
+            }
           }
         }
       )
