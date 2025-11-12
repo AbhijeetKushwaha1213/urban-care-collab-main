@@ -213,10 +213,26 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
           // Handle place selection
           searchBox.addListener('places_changed', () => {
             const places = searchBox.getPlaces();
-            if (!places || places.length === 0) return;
+            
+            console.log('Places changed event fired, places:', places);
+            
+            if (!places || places.length === 0) {
+              console.log('No places found');
+              return;
+            }
 
             const place = places[0];
-            if (!place.geometry || !place.geometry.location) return;
+            console.log('First place:', place);
+            
+            if (!place.geometry || !place.geometry.location) {
+              console.log('Place has no geometry');
+              toast({
+                title: "Location Error",
+                description: "Could not find coordinates for this location. Try another search.",
+                variant: "destructive",
+              });
+              return;
+            }
 
             const coords = {
               lat: place.geometry.location.lat(),
@@ -231,13 +247,18 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
               markerRef.current.setMap(null);
             }
 
-            // Add marker for searched place
+            // Add marker for searched place with bounce animation
             const marker = new window.google.maps.Marker({
               position: coords,
               map: map,
               title: place.name || 'Selected Location',
-              animation: window.google.maps.Animation.DROP
+              animation: window.google.maps.Animation.BOUNCE
             });
+
+            // Stop bounce after 2 seconds
+            setTimeout(() => {
+              marker.setAnimation(null);
+            }, 2000);
 
             markerRef.current = marker;
 
@@ -245,16 +266,22 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
             const address = place.formatted_address || place.name || `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
             setMapAddress(address);
 
-            // Center map on place
-            map.setCenter(coords);
-            map.setZoom(15);
+            // Center map on place with proper zoom
+            if (place.geometry.viewport) {
+              // If place has a viewport, fit to it
+              map.fitBounds(place.geometry.viewport);
+            } else {
+              // Otherwise center and zoom
+              map.setCenter(coords);
+              map.setZoom(17); // Closer zoom for better visibility
+            }
 
             // Clear search input
             searchInput.value = '';
 
             toast({
               title: "Location Found",
-              description: `Selected: ${place.name || 'Location'}. Scroll down to save.`,
+              description: `Selected: ${place.name || address}. Scroll down to save.`,
             });
           });
           
@@ -434,8 +461,27 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
       </div>
 
       {/* Map Modal */}
-      <Dialog open={isMapOpen} onOpenChange={setIsMapOpen}>
-        <DialogContent className="max-w-5xl w-[95vw] h-[85vh] p-0 overflow-hidden">
+      <Dialog open={isMapOpen} onOpenChange={(open) => {
+        // Don't close on outside click or escape - only via buttons
+        if (!open) return;
+        setIsMapOpen(open);
+      }}>
+        <DialogContent 
+          className="max-w-5xl w-[95vw] h-[85vh] p-0 overflow-hidden"
+          onInteractOutside={(e) => {
+            // Prevent closing when clicking outside
+            e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            // Prevent closing on Escape key
+            if (selectedCoords) {
+              const confirmClose = window.confirm('Close without saving? Your selected location will be lost.');
+              if (!confirmClose) {
+                e.preventDefault();
+              }
+            }
+          }}
+        >
           {/* Header - Fixed at top */}
           <div className="flex items-center justify-between p-4 border-b bg-white">
             <div>
@@ -451,10 +497,15 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
               variant="ghost"
               size="sm"
               onClick={() => {
-                setIsMapOpen(false);
-                setSelectedCoords(null);
-                setMapAddress('');
+                // Only close the popup, don't clear selection
+                const confirmClose = !selectedCoords || window.confirm('Close without saving? Your selected location will be lost.');
+                if (confirmClose) {
+                  setIsMapOpen(false);
+                  setSelectedCoords(null);
+                  setMapAddress('');
+                }
               }}
+              title="Close map"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -471,13 +522,19 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, placeh
               />
               
               {/* Search Box - Positioned over map */}
-              <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-10">
-                <input
-                  type="text"
-                  placeholder="Search for a location..."
-                  className="w-80 px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  id="map-search-input"
-                />
+              <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-10 w-full max-w-md px-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="🔍 Search for a location (e.g., Mumbai, India Gate, etc.)"
+                    className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-lg shadow-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    id="map-search-input"
+                    autoComplete="off"
+                  />
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs">
+                    Press Enter
+                  </div>
+                </div>
               </div>
             </div>
             
