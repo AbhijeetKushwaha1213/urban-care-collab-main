@@ -95,37 +95,93 @@ export const analyzeImage = async (file: File): Promise<VisionAnalysisResult> =>
   }
 };
 
-// Generate human-readable description from detected elements
+// Generate detailed human-readable description from detected elements
 const generateDescription = (labels: string[], texts: string[], objects: string[]): string => {
   const allElements = [...labels, ...objects].filter(Boolean);
   
   if (allElements.length === 0) {
-    return "Issue detected in the uploaded image. Please provide additional details.";
+    return "An issue has been detected in the uploaded image that requires attention from the municipal authorities. The image shows a civic problem that needs to be addressed. Please review the image carefully and take appropriate action to resolve this matter. Additional details may be provided by the reporter.";
   }
 
-  // Prioritize infrastructure and problem-related terms
-  const problemKeywords = allElements.filter(element => 
-    element.toLowerCase().includes('damage') ||
-    element.toLowerCase().includes('broken') ||
-    element.toLowerCase().includes('crack') ||
-    element.toLowerCase().includes('hole') ||
-    element.toLowerCase().includes('leak') ||
-    element.toLowerCase().includes('trash') ||
-    element.toLowerCase().includes('garbage') ||
-    element.toLowerCase().includes('pothole') ||
-    element.toLowerCase().includes('road') ||
-    element.toLowerCase().includes('street') ||
-    element.toLowerCase().includes('sidewalk') ||
-    element.toLowerCase().includes('building') ||
-    element.toLowerCase().includes('infrastructure')
-  );
+  // Categorize detected elements
+  const problemKeywords = allElements.filter(element => {
+    const el = element.toLowerCase();
+    return el.includes('damage') || el.includes('broken') || el.includes('crack') || 
+           el.includes('hole') || el.includes('leak') || el.includes('trash') || 
+           el.includes('garbage') || el.includes('pothole') || el.includes('waste') ||
+           el.includes('graffiti') || el.includes('vandal') || el.includes('hazard');
+  });
 
-  const mainElements = problemKeywords.length > 0 ? problemKeywords : allElements.slice(0, 3);
-  
-  // Add any detected text for context
-  const contextText = texts.length > 0 ? ` Text visible: "${texts[0].substring(0, 50)}"` : '';
-  
-  return `Issue involving ${mainElements.join(', ').toLowerCase()}. ${contextText}`.trim();
+  const infrastructureKeywords = allElements.filter(element => {
+    const el = element.toLowerCase();
+    return el.includes('road') || el.includes('street') || el.includes('sidewalk') || 
+           el.includes('pavement') || el.includes('asphalt') || el.includes('concrete') ||
+           el.includes('building') || el.includes('wall') || el.includes('fence') ||
+           el.includes('bridge') || el.includes('structure');
+  });
+
+  const environmentKeywords = allElements.filter(element => {
+    const el = element.toLowerCase();
+    return el.includes('water') || el.includes('tree') || el.includes('park') || 
+           el.includes('garden') || el.includes('plant') || el.includes('outdoor') ||
+           el.includes('nature') || el.includes('landscape');
+  });
+
+  const utilityKeywords = allElements.filter(element => {
+    const el = element.toLowerCase();
+    return el.includes('light') || el.includes('lamp') || el.includes('electric') || 
+           el.includes('wire') || el.includes('pole') || el.includes('pipe') ||
+           el.includes('drain') || el.includes('manhole') || el.includes('utility');
+  });
+
+  // Build detailed description
+  let description = "This image shows a civic issue that requires municipal attention. ";
+
+  // Add problem description
+  if (problemKeywords.length > 0) {
+    description += `The image reveals ${problemKeywords.slice(0, 3).join(', ').toLowerCase()} which appears to be affecting the area. `;
+  }
+
+  // Add infrastructure context
+  if (infrastructureKeywords.length > 0) {
+    description += `The issue is located in or near ${infrastructureKeywords.slice(0, 3).join(', ').toLowerCase()}. `;
+  }
+
+  // Add environmental context
+  if (environmentKeywords.length > 0) {
+    description += `The surrounding environment includes ${environmentKeywords.slice(0, 2).join(' and ').toLowerCase()}. `;
+  }
+
+  // Add utility context
+  if (utilityKeywords.length > 0) {
+    description += `Utilities or infrastructure elements such as ${utilityKeywords.slice(0, 2).join(' and ').toLowerCase()} are visible in the vicinity. `;
+  }
+
+  // Add general elements if no specific categories found
+  if (problemKeywords.length === 0 && infrastructureKeywords.length === 0) {
+    const topElements = allElements.slice(0, 5);
+    description += `The image contains elements including ${topElements.join(', ').toLowerCase()}. `;
+  }
+
+  // Add detected text context
+  if (texts.length > 0 && texts[0].length > 3) {
+    const cleanText = texts[0].substring(0, 100).trim();
+    description += `Visible text in the image reads: "${cleanText}". `;
+  }
+
+  // Add severity assessment
+  if (problemKeywords.some(k => k.toLowerCase().includes('damage') || k.toLowerCase().includes('broken') || k.toLowerCase().includes('hazard'))) {
+    description += "This issue may pose safety concerns and should be addressed promptly. ";
+  }
+
+  // Add call to action
+  description += "The reported issue requires inspection and appropriate action from the relevant municipal department to ensure public safety and maintain community standards. ";
+
+  // Add technical details
+  const allUniqueElements = [...new Set([...labels, ...objects])].slice(0, 8);
+  description += `Detected elements: ${allUniqueElements.join(', ').toLowerCase()}.`;
+
+  return description.trim();
 };
 
 // Suggest category based on detected elements
@@ -213,29 +269,73 @@ export const analyzeMultipleImages = async (files: File[]): Promise<VisionAnalys
   });
 };
 
-// Combine multiple image analyses into a single description
+// Combine multiple image analyses into a single comprehensive description
 export const combineImageAnalyses = (analyses: VisionAnalysisResult[]): { description: string; category: string } => {
   const validAnalyses = analyses.filter(analysis => analysis.confidence > 0.3);
   
   if (validAnalyses.length === 0) {
     return {
-      description: "Multiple images uploaded. Please provide detailed description of the issue.",
+      description: "Multiple images have been uploaded showing different aspects of the civic issue. The images provide visual documentation of the problem from various angles and perspectives. This comprehensive visual evidence will help municipal authorities better understand the scope and severity of the issue. Please review all uploaded images carefully to assess the situation and determine the appropriate course of action. The issue requires attention from the relevant department to ensure proper resolution and maintain community standards.",
       category: 'others'
     };
   }
   
-  // Combine descriptions
-  const descriptions = validAnalyses.map((analysis, index) => 
-    `Image ${index + 1}: ${analysis.description}`
+  // Build comprehensive combined description
+  let combinedDescription = `This report includes ${analyses.length} image${analyses.length > 1 ? 's' : ''} documenting the civic issue from multiple perspectives. `;
+  
+  // Add overview
+  combinedDescription += "The visual evidence provides a comprehensive view of the problem. ";
+  
+  // Add individual image descriptions with more context
+  validAnalyses.forEach((analysis, index) => {
+    combinedDescription += `\n\nImage ${index + 1} Analysis: ${analysis.description} `;
+  });
+  
+  // Collect all unique labels from all images
+  const allLabels = [...new Set(validAnalyses.flatMap(a => a.labels))];
+  if (allLabels.length > 0) {
+    combinedDescription += `\n\nCombined Analysis: Across all images, the following elements have been identified: ${allLabels.slice(0, 12).join(', ').toLowerCase()}. `;
+  }
+  
+  // Add severity assessment based on multiple images
+  const hasSeverityIndicators = validAnalyses.some(a => 
+    a.labels.some(label => 
+      label.toLowerCase().includes('damage') || 
+      label.toLowerCase().includes('broken') || 
+      label.toLowerCase().includes('hazard') ||
+      label.toLowerCase().includes('danger')
+    )
   );
+  
+  if (hasSeverityIndicators) {
+    combinedDescription += "The multiple images indicate that this is a significant issue that may pose safety or health concerns. ";
+  }
+  
+  // Add recommendation
+  combinedDescription += "The comprehensive visual documentation provided through these images will assist authorities in making an informed assessment and taking appropriate remedial action. ";
   
   // Find most confident category
   const bestCategory = validAnalyses.reduce((best, current) => 
     current.confidence > best.confidence ? current : best
   ).suggestedCategory;
   
+  // Add category-specific context
+  const categoryContext = {
+    'infrastructure': 'This infrastructure-related issue requires attention from the public works or roads department.',
+    'water': 'This water-related issue should be addressed by the water supply or drainage department.',
+    'streetlight': 'This lighting issue requires attention from the electrical or street lighting department.',
+    'waste': 'This waste management issue should be handled by the sanitation or waste management department.',
+    'parks': 'This parks and recreation issue requires attention from the parks maintenance department.',
+    'building': 'This building-related issue should be reviewed by the building maintenance or inspection department.',
+    'transportation': 'This transportation-related issue requires attention from the traffic or transport department.',
+    'safety': 'This safety concern requires immediate attention from the appropriate safety or emergency services department.',
+    'others': 'This issue requires review to determine the appropriate department for resolution.'
+  };
+  
+  combinedDescription += categoryContext[bestCategory] || categoryContext['others'];
+  
   return {
-    description: descriptions.join(' | '),
+    description: combinedDescription.trim(),
     category: bestCategory
   };
 };
