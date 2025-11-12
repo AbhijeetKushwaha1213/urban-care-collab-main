@@ -1,316 +1,368 @@
-# Nagarsetu - Codebase Overview
+# Nagar Setu - Codebase Overview
 
-## 📊 Project Status: REFACTORED & ORGANIZED ✅
+## 📊 Project Status: CLEAN & ORGANIZED ✅
 
-This document provides a quick overview of the entire codebase structure and how to navigate it.
+This document provides a comprehensive overview of the codebase structure after cleanup and refactoring.
 
 ## 🎯 Quick Start
 
 1. **New to the project?** → Read [README.md](README.md)
-2. **Setting up?** → Follow [docs/setup/DATABASE_SETUP.md](docs/setup/DATABASE_SETUP.md)
-3. **Deploying?** → Check [docs/setup/DEPLOYMENT.md](docs/setup/DEPLOYMENT.md)
-4. **Understanding code structure?** → See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
+2. **Setting up database?** → Use [COMPLETE_DATABASE_SETUP.sql](COMPLETE_DATABASE_SETUP.sql)
+3. **Deploying?** → Check [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+4. **Official Portal?** → See [docs/OFFICIAL_PORTAL_GUIDE.md](docs/OFFICIAL_PORTAL_GUIDE.md)
 
-## 📁 Directory Structure
+## 📁 Clean Directory Structure
 
 ```
 nagar-setu/
 │
-├── 📄 README.md                      # Start here!
-├── 📄 REFACTORING_PLAN.md            # Refactoring strategy
-├── 📄 REFACTORING_COMPLETE.md        # What was done
-├── 📄 CODEBASE_OVERVIEW.md           # This file
+├── 📄 README.md                           # Project overview
+├── 📄 CODEBASE_OVERVIEW.md                # This file
+├── 📄 COMPLETE_DATABASE_SETUP.sql         # Database setup script
+├── 📄 CLEANUP_SUMMARY.md                  # Recent cleanup details
 │
-├── 📂 src/                           # Source code
-│   ├── components/                   # React components
-│   ├── pages/                        # Page components
-│   ├── contexts/                     # React contexts
-│   ├── hooks/                        # Custom hooks
-│   ├── lib/                          # Libraries & configs
-│   ├── services/                     # API services
-│   ├── types/                        # TypeScript types
-│   ├── utils/                        # Utility functions
-│   ├── constants/                    # Constants
-│   ├── App.tsx                       # Main app
-│   └── main.tsx                      # Entry point
+├── 📂 src/                                # Source code
+│   ├── components/                        # React components
+│   │   ├── ui/                           # Shadcn UI components
+│   │   ├── AdminAccessCodeManager.tsx
+│   │   ├── AssignWorkerModal.tsx
+│   │   ├── AuthModal.tsx
+│   │   ├── CitizenFeedbackModal.tsx
+│   │   ├── CompactResolvedShowcase.tsx   # Landing page showcase
+│   │   ├── DuplicateIssueModal.tsx
+│   │   ├── EditProfileModal.tsx
+│   │   ├── ErrorBoundary.tsx
+│   │   ├── IssueCard.tsx
+│   │   ├── IssueDetailModal.tsx
+│   │   ├── IssueMap.tsx
+│   │   ├── LoadingSpinner.tsx
+│   │   ├── LocationPermissionModal.tsx
+│   │   ├── LocationPicker.tsx
+│   │   ├── MediaUploadComponent.tsx      # Multi-media upload
+│   │   ├── Navbar.tsx
+│   │   ├── NotificationCenter.tsx
+│   │   └── SimpleMap.tsx
+│   │
+│   ├── pages/                            # Page components
+│   │   ├── official/                     # Official portal pages
+│   │   │   ├── OfficialLogin.tsx
+│   │   │   ├── OfficialOnboarding.tsx
+│   │   │   ├── OfficialDashboard.tsx
+│   │   │   ├── IssueDetails.tsx
+│   │   │   ├── UploadResolution.tsx
+│   │   │   └── OfficialProfile.tsx
+│   │   │
+│   │   ├── AuthCallback.tsx
+│   │   ├── AuthorityDashboard.tsx
+│   │   ├── EventDetail.tsx
+│   │   ├── Events.tsx
+│   │   ├── Index.tsx
+│   │   ├── IssueDetail.tsx
+│   │   ├── Issues.tsx
+│   │   ├── Landing.tsx                   # Main landing page
+│   │   ├── NotFound.tsx
+│   │   ├── Profile.tsx
+│   │   ├── ReportIssue.tsx               # Issue reporting with media
+│   │   ├── UserHomepage.tsx
+│   │   └── UserOnboarding.tsx
+│   │
+│   ├── contexts/                         # React contexts
+│   │   ├── LocationContext.tsx
+│   │   └── SupabaseAuthContext.tsx
+│   │
+│   ├── hooks/                            # Custom hooks
+│   │   ├── use-mobile.tsx
+│   │   └── use-toast.ts
+│   │
+│   ├── lib/                              # Libraries & configs
+│   │   ├── supabase.ts                   # Supabase client
+│   │   └── utils.ts                      # Utility functions
+│   │
+│   ├── services/                         # API services
+│   │   ├── authorityService.ts           # Authority operations
+│   │   ├── duplicateDetectionService.ts  # Duplicate detection
+│   │   ├── supabaseService.ts            # Supabase operations
+│   │   └── visionService.ts              # Google Vision AI
+│   │
+│   ├── types/                            # TypeScript types
+│   │   └── supabase.ts                   # Database types
+│   │
+│   ├── utils/                            # Utility functions
+│   │   └── authValidation.ts             # Auth validation
+│   │
+│   ├── constants/                        # Constants
+│   │   └── categories.ts                 # Issue categories
+│   │
+│   ├── App.tsx                           # Main app component
+│   ├── main.tsx                          # Entry point
+│   └── index.css                         # Global styles
 │
-├── 📂 docs/                          # Documentation
-│   ├── setup/                        # Setup guides
-│   │   ├── DATABASE_SETUP.md         # Database configuration
-│   │   ├── GOOGLE_MAPS_SETUP.md      # Maps API setup
-│   │   └── DEPLOYMENT.md             # Deployment guide
-│   │
-│   ├── features/                     # Feature docs
-│   │   ├── OFFICIAL_PORTAL.md        # Official portal guide
-│   │   ├── AI_POWERED_ISSUE_REPORTING.md
-│   │   ├── ASSIGNMENT_SYSTEM.md
-│   │   └── ENHANCED_PHOTO_UPLOAD.md
-│   │
-│   ├── migration/                    # Database migrations
-│   │   ├── database-setup.sql
-│   │   ├── department-official-portal.sql
-│   │   ├── add-worker-profile-fields.sql
-│   │   ├── add-citizen-feedback.sql
-│   │   └── [more migrations...]
-│   │
-│   ├── scripts/                      # Utility scripts
-│   │   ├── create-official-user.sql
-│   │   └── quick-create-official.sql
-│   │
-│   ├── archive/                      # Old documentation
-│   │   └── [50+ archived files]
-│   │
-│   ├── PROJECT_STRUCTURE.md          # Code organization
-│   └── README.md                     # Docs index
+├── 📂 docs/                              # Essential documentation
+│   ├── ADMIN_APPROVAL_WORKFLOW.md        # Admin approval process
+│   ├── CITIZEN_FEEDBACK_SYSTEM.md        # Feedback system
+│   ├── CREATE_OFFICIAL_ACCOUNT_GUIDE.md  # Account creation
+│   ├── DEPLOYMENT.md                     # Deployment guide
+│   ├── DUPLICATE_DETECTION.md            # Duplicate detection
+│   ├── FOLDER_STRUCTURE.md               # Folder organization
+│   ├── OFFICIAL_ACCOUNT_SETUP_VISUAL_GUIDE.md
+│   ├── OFFICIAL_PORTAL_DEPLOYMENT_CHECKLIST.md
+│   ├── OFFICIAL_PORTAL_GUIDE.md          # Official portal docs
+│   ├── OFFICIAL_PORTAL_QUICKSTART.md     # Quick start
+│   ├── OFFICIAL_PORTAL_WORKFLOW.md       # Workflow guide
+│   ├── PROJECT_STRUCTURE.md              # Project structure
+│   ├── README.md                         # Docs overview
+│   ├── VERCEL_OPTIMIZATION.md            # Optimization guide
+│   └── WORKER_ONBOARDING_AND_ASSIGNMENT.md
 │
-├── 📂 public/                        # Static assets
-│   ├── images/
-│   ├── icons/
-│   └── [other assets]
+├── 📂 public/                            # Static assets
+│   ├── cityscape-bg.jpeg                 # Landing page background
+│   ├── favicon.ico
+│   ├── placeholder.svg
+│   ├── robots.txt
+│   └── _redirects                        # Vercel redirects
 │
-└── 📂 [config files]                 # Configuration
-    ├── package.json
-    ├── tsconfig.json
-    ├── vite.config.ts
-    ├── tailwind.config.ts
-    └── .env.local
+├── 📂 scripts/                           # Utility scripts
+│   ├── deploy.sh                         # Deployment script
+│   └── generate-access-code.js           # Access code generator
+│
+└── 📄 Configuration Files
+    ├── package.json                      # Dependencies
+    ├── tsconfig.json                     # TypeScript config
+    ├── vite.config.ts                    # Vite config
+    ├── tailwind.config.ts                # Tailwind config
+    ├── vercel.json                       # Vercel config
+    └── components.json                   # Shadcn config
 ```
 
-## 🎨 Application Structure
+## 🎨 Key Features
 
-### User Roles
-1. **Citizens** - Report and track issues
-2. **Officials/Workers** - Manage and resolve issues
-3. **Administrators** - Oversee entire system
+### 1. Landing Page
+- **File**: `src/pages/Landing.tsx`
+- **Features**:
+  - Real-time statistics
+  - User type selection (Citizen/Authority/Worker)
+  - Compact resolved issues showcase
+  - Responsive design
 
-### Main Features
+### 2. Issue Reporting
+- **File**: `src/pages/ReportIssue.tsx`
+- **Component**: `src/components/MediaUploadComponent.tsx`
+- **Features**:
+  - Multiple image upload (up to 5)
+  - Video upload (up to 2)
+  - Voice note recording (up to 3)
+  - AI-powered description generation
+  - Duplicate detection
+  - Location picker with map
 
-#### For Citizens
-- 🏠 **Homepage** (`/`) - Landing page
-- 📝 **Report Issue** (`/report`) - Submit new issues
-- 📋 **Issues List** (`/issues`) - Browse all issues
-- 🔍 **Issue Details** (`/issue/:id`) - View specific issue
-- 👤 **Profile** (`/profile`) - User profile
-- 🎉 **Events** (`/events`) - Community events
+### 3. Resolved Issues Showcase
+- **File**: `src/components/CompactResolvedShowcase.tsx`
+- **Features**:
+  - Grid layout (3 columns on desktop)
+  - Interactive before/after sliders
+  - Responsive design
+  - Auto-fetches from database
 
-#### For Officials
-- 🔐 **Official Login** (`/official/login`) - Dedicated login
-- 📊 **Dashboard** (`/official/dashboard`) - Issue management
-- 📸 **Upload Resolution** (`/official/upload-resolution/:id`) - Photo upload
-- 👤 **Official Profile** (`/official/profile`) - Worker profile
-- 🎓 **Onboarding** (`/official/onboarding`) - First-time setup
+### 4. Official Portal
+- **Directory**: `src/pages/official/`
+- **Features**:
+  - Secure login with access codes
+  - Issue assignment to workers
+  - Resolution upload with before/after photos
+  - Department-based access control
 
-#### For Administrators
-- 🎛️ **Authority Dashboard** (`/authority`) - Admin panel
-- 👥 **Worker Assignment** - Assign issues to workers
-- 🔔 **Notifications** - System alerts
-- 📈 **Analytics** - Performance metrics
+### 5. Authority Dashboard
+- **File**: `src/pages/AuthorityDashboard.tsx`
+- **Features**:
+  - Issue overview and statistics
+  - Issue management
+  - Analytics and insights
 
-## 🗄️ Database Schema
-
-### Core Tables
-- **profiles** - User information and roles
-- **issues** - Reported municipal issues
-- **notifications** - System notifications
-- **events** - Community events
-- **success_stories** - Resolved issue showcases
-
-### Key Relationships
-```
-profiles (1) ----< (many) issues
-profiles (1) ----< (many) notifications
-issues (1) ----< (many) comments
-issues (1) ----< (1) success_stories
-```
-
-## 🔧 Technology Stack
+## 🔧 Core Technologies
 
 ### Frontend
-- **React 18** - UI library
+- **React 18** - UI framework
 - **TypeScript** - Type safety
 - **Vite** - Build tool
 - **Tailwind CSS** - Styling
-- **shadcn/ui** - Component library
+- **Shadcn UI** - Component library
+- **Framer Motion** - Animations
 - **React Router** - Routing
-- **React Query** - Data fetching
+- **React Hook Form** - Form handling
 
-### Backend
+### Backend & Services
 - **Supabase** - Backend as a Service
-  - PostgreSQL database
   - Authentication
+  - PostgreSQL database
+  - Real-time subscriptions
   - Storage
-  - Realtime subscriptions
-
-### APIs & Services
+- **Google Vision AI** - Image analysis
 - **Google Maps API** - Location services
-- **Google Cloud Vision** - Image analysis (optional)
 
-### Deployment
-- **Vercel** - Hosting platform
-- **GitHub** - Version control
+### State Management
+- **React Context** - Global state
+- **TanStack Query** - Server state
+- **Local Storage** - Persistence
 
-## 📝 Key Files
+## 📊 Database Schema
 
-### Configuration
-- `package.json` - Dependencies and scripts
-- `tsconfig.json` - TypeScript configuration
-- `vite.config.ts` - Vite configuration
-- `tailwind.config.ts` - Tailwind configuration
-- `.env.local` - Environment variables
+### Main Tables
+- `issues` - Civic issues
+- `users` - User accounts
+- `officials` - Official accounts
+- `departments` - Government departments
+- `access_codes` - Official access codes
+- `issue_assignments` - Worker assignments
+- `citizen_feedback` - User feedback
+- `notifications` - User notifications
 
-### Entry Points
-- `src/main.tsx` - Application entry
-- `src/App.tsx` - Main app component
-- `index.html` - HTML template
+### Key Relationships
+- Issues → Users (created_by)
+- Issues → Officials (assigned_to)
+- Officials → Departments (department_id)
+- Assignments → Issues + Officials
 
-### Core Services
-- `src/lib/supabase.ts` - Supabase client
-- `src/contexts/SupabaseAuthContext.tsx` - Auth context
-- `src/contexts/LocationContext.tsx` - Location context
+## 🚀 Development Workflow
 
-## 🚀 Common Tasks
-
-### Development
+### Setup
 ```bash
-npm install          # Install dependencies
-npm run dev          # Start dev server
-npm run build        # Build for production
-npm run preview      # Preview production build
-npm run lint         # Run linter
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env.local
+
+# Run development server
+npm run dev
 ```
 
-### Database
+### Build
 ```bash
-# Run migrations in Supabase SQL Editor
-# Files located in docs/migration/
+# Production build
+npm run build
+
+# Preview build
+npm run preview
 ```
 
-### Deployment
+### Deploy
 ```bash
-git push origin main  # Auto-deploys to Vercel
+# Deploy to Vercel
+./scripts/deploy.sh
 ```
 
-## 📚 Documentation Index
+## 📝 Code Organization
 
-### Setup Guides
-- [Database Setup](docs/setup/DATABASE_SETUP.md)
-- [Google Maps Setup](docs/setup/GOOGLE_MAPS_SETUP.md)
-- [Deployment Guide](docs/setup/DEPLOYMENT.md)
-- [Supabase Setup](docs/setup/SUPABASE_SETUP.md)
+### Components
+- **UI Components**: `src/components/ui/` - Reusable UI elements
+- **Feature Components**: `src/components/` - Feature-specific components
+- **Page Components**: `src/pages/` - Full page components
 
-### Feature Documentation
-- [Official Portal](docs/features/OFFICIAL_PORTAL.md)
-- [AI-Powered Reporting](docs/features/AI_POWERED_ISSUE_REPORTING.md)
-- [Assignment System](docs/features/ASSIGNMENT_SYSTEM.md)
-- [Photo Upload](docs/features/ENHANCED_PHOTO_UPLOAD.md)
+### Services
+- **API Services**: `src/services/` - External API integrations
+- **Supabase Service**: Centralized database operations
+- **Vision Service**: Google Vision AI integration
+- **Authority Service**: Official portal operations
 
-### Code Documentation
-- [Project Structure](docs/PROJECT_STRUCTURE.md)
-- [Folder Structure](docs/FOLDER_STRUCTURE.md)
+### Contexts
+- **Auth Context**: User authentication state
+- **Location Context**: User location management
 
-### Workflow Documentation
-- [Admin Approval](docs/ADMIN_APPROVAL_WORKFLOW.md)
-- [Official Portal Workflow](docs/OFFICIAL_PORTAL_WORKFLOW.md)
-- [Worker Onboarding](docs/WORKER_ONBOARDING_AND_ASSIGNMENT.md)
+### Hooks
+- **Custom Hooks**: `src/hooks/` - Reusable logic
+- **Toast Hook**: Notification system
+- **Mobile Hook**: Responsive utilities
 
-## 🔍 Finding Things
+## 🔒 Security
 
-### "Where is...?"
+### Authentication
+- Supabase Auth with email/password
+- Access code system for officials
+- Protected routes with auth guards
+- Session management
 
-**Authentication code?**
-→ `src/contexts/SupabaseAuthContext.tsx`
+### Authorization
+- Role-based access control (RBAC)
+- Department-based permissions
+- Row-level security (RLS) in database
 
-**Issue components?**
-→ `src/components/IssueCard.tsx`, `IssueMap.tsx`, etc.
+### Data Protection
+- Environment variables for secrets
+- Secure API endpoints
+- Input validation
+- XSS protection
 
-**Official portal pages?**
-→ `src/pages/official/`
+## 🎯 Best Practices
 
-**Database migrations?**
-→ `docs/migration/`
+### Code Style
+- TypeScript for type safety
+- ESLint for code quality
+- Consistent naming conventions
+- Component composition
 
-**API services?**
-→ `src/services/`
+### Performance
+- Code splitting
+- Lazy loading
+- Image optimization
+- Caching strategies
 
-**UI components?**
-→ `src/components/ui/`
+### Accessibility
+- Semantic HTML
+- ARIA labels
+- Keyboard navigation
+- Screen reader support
 
-**Type definitions?**
-→ `src/types/index.ts`
+## 📚 Documentation
 
-**Utility functions?**
-→ `src/utils/`
+### Essential Docs
+- **README.md** - Project overview
+- **DEPLOYMENT.md** - Deployment guide
+- **OFFICIAL_PORTAL_GUIDE.md** - Official portal documentation
+- **CLEANUP_SUMMARY.md** - Recent cleanup details
+
+### Feature Docs
+All feature documentation is in the `docs/` directory, organized by topic.
+
+## 🔄 Recent Changes
+
+### Cleanup (November 2024)
+- ✅ Removed 90+ unused files
+- ✅ Deleted 7 archive directories
+- ✅ Cleaned up root directory
+- ✅ Removed duplicate components
+- ✅ Deleted test files
+- ✅ Organized documentation
+
+### Features Added
+- ✅ Compact resolved issues showcase
+- ✅ Multi-media upload (images, video, audio)
+- ✅ Interactive before/after sliders
+- ✅ Real-time statistics on landing page
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
+1. **Build Errors**: Check TypeScript errors with `npm run type-check`
+2. **Database Issues**: Verify Supabase connection in `.env.local`
+3. **Map Issues**: Check Google Maps API key
+4. **Auth Issues**: Clear browser cache and localStorage
 
-**Build fails?**
-→ Check `package.json` dependencies
+### Debug Mode
+```bash
+# Enable debug logging
+VITE_DEBUG=true npm run dev
+```
 
-**Database errors?**
-→ Verify `.env.local` credentials
+## 📞 Support
 
-**Map not loading?**
-→ Check Google Maps API key
-
-**Auth not working?**
-→ Check Supabase configuration
-
-**Images not uploading?**
-→ Check Supabase storage setup
-
-### Getting Help
-
-1. Check [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
-2. Review feature-specific docs in `docs/features/`
-3. Check archived docs in `docs/archive/` for historical context
-4. Open an issue on GitHub
-
-## 📊 Project Statistics
-
-- **Total Files**: ~200+
-- **Components**: 30+
-- **Pages**: 15+
-- **Database Tables**: 5 core tables
-- **API Endpoints**: Supabase auto-generated
-- **Documentation Files**: 100+
-- **Lines of Code**: ~10,000+
-
-## 🎯 Next Steps
-
-### For New Developers
-1. ✅ Read README.md
-2. ✅ Set up development environment
-3. ✅ Run the app locally
-4. ✅ Explore the codebase
-5. ✅ Read feature documentation
-6. ✅ Make your first contribution
-
-### For Existing Developers
-1. ✅ Review refactored structure
-2. ✅ Update bookmarks to new docs
-3. ✅ Follow new conventions
-4. ✅ Migrate code gradually (optional)
-
-### For Deployment
-1. ✅ Follow deployment guide
-2. ✅ Set up environment variables
-3. ✅ Configure domain
-4. ✅ Monitor performance
-
-## 🤝 Contributing
-
-See [README.md](README.md) for contribution guidelines.
-
-## 📄 License
-
-MIT License - See LICENSE file for details.
+For issues or questions:
+1. Check existing documentation in `docs/`
+2. Review `CLEANUP_SUMMARY.md` for recent changes
+3. Check git history for context
+4. Contact development team
 
 ---
 
 **Last Updated**: November 2024
-**Maintained By**: Development Team
-**Status**: Active Development
-
-For questions or support, please open an issue on GitHub.
+**Status**: ✅ Clean & Production Ready
+**Version**: 2.0 (Post-Cleanup)
