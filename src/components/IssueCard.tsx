@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, MessageSquare, Calendar, Users, ThumbsUp } from 'lucide-react';
+import { MapPin, MessageSquare, Calendar, Users, ThumbsUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/lib/supabase';
@@ -14,6 +14,7 @@ interface IssueCardProps {
   location: string;
   category: string;
   image?: string;
+  images?: string[]; // Support multiple images
   date: string;
   commentsCount: number;
   volunteersCount: number;
@@ -42,6 +43,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
   location,
   category,
   image,
+  images,
   date,
   commentsCount,
   volunteersCount,
@@ -54,6 +56,16 @@ const IssueCard: React.FC<IssueCardProps> = ({
   const [upvoted, setUpvoted] = useState(false);
   const [currentUpvoteCount, setCurrentUpvoteCount] = useState(volunteersCount);
   const [isUpvoting, setIsUpvoting] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  
+  // Prepare images array - use images prop if available, otherwise use single image
+  const imageArray = images && images.length > 0 ? images : (image ? [image] : []);
+  const hasMultipleImages = imageArray.length > 1;
+
+  // Minimum swipe distance (in px) to trigger navigation
+  const minSwipeDistance = 50;
 
   // Check if user has upvoted this issue
   useEffect(() => {
@@ -67,6 +79,54 @@ const IssueCard: React.FC<IssueCardProps> = ({
   useEffect(() => {
     setCurrentUpvoteCount(volunteersCount);
   }, [volunteersCount]);
+
+  // Handle image navigation
+  const handlePrevImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev === 0 ? imageArray.length - 1 : prev - 1));
+  };
+
+  const handleNextImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev === imageArray.length - 1 ? 0 : prev + 1));
+  };
+
+  const handleDotClick = (index: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentImageIndex(index);
+  };
+
+  // Touch handlers for swipe gestures
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    if (isLeftSwipe) {
+      // Swipe left - go to next image
+      setCurrentImageIndex((prev) => (prev === imageArray.length - 1 ? 0 : prev + 1));
+    } else if (isRightSwipe) {
+      // Swipe right - go to previous image
+      setCurrentImageIndex((prev) => (prev === 0 ? imageArray.length - 1 : prev - 1));
+    }
+  };
 
   // Handle upvote
   const handleUpvote = async (e: React.MouseEvent) => {
@@ -139,14 +199,22 @@ const IssueCard: React.FC<IssueCardProps> = ({
       className
     )}>
       <Link to={`/issues/${id}`} className="block">
-        {image && (
-          <div className="relative w-full h-48 overflow-hidden">
+        {imageArray.length > 0 && (
+          <div 
+            className="relative w-full h-48 overflow-hidden group"
+            onTouchStart={hasMultipleImages ? onTouchStart : undefined}
+            onTouchMove={hasMultipleImages ? onTouchMove : undefined}
+            onTouchEnd={hasMultipleImages ? onTouchEnd : undefined}
+          >
+            {/* Image Display */}
             <img 
-              src={image} 
-              alt={title} 
-              className="w-full h-full object-cover" 
+              src={imageArray[currentImageIndex]} 
+              alt={`${title} - Image ${currentImageIndex + 1}`} 
+              className="w-full h-full object-cover transition-opacity duration-300" 
               loading="lazy" 
             />
+            
+            {/* Category Badge */}
             <div 
               className={cn(
                 "absolute top-3 left-3 px-2 py-1 rounded-md text-xs font-medium border",
@@ -155,6 +223,50 @@ const IssueCard: React.FC<IssueCardProps> = ({
             >
               {category}
             </div>
+
+            {/* Multiple Images Indicator & Navigation */}
+            {hasMultipleImages && (
+              <>
+                {/* Image Counter Badge */}
+                <div className="absolute top-3 right-3 bg-black/70 text-white px-2 py-1 rounded-md text-xs font-medium">
+                  {currentImageIndex + 1} / {imageArray.length}
+                </div>
+
+                {/* Navigation Arrows */}
+                <button
+                  onClick={handlePrevImage}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Previous image"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                
+                <button
+                  onClick={handleNextImage}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Next image"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+
+                {/* Dot Indicators */}
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                  {imageArray.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={(e) => handleDotClick(index, e)}
+                      className={cn(
+                        "w-2 h-2 rounded-full transition-all",
+                        index === currentImageIndex 
+                          ? "bg-white w-6" 
+                          : "bg-white/50 hover:bg-white/70"
+                      )}
+                      aria-label={`Go to image ${index + 1}`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
         

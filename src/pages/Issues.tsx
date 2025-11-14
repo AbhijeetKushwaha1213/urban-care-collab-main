@@ -128,6 +128,7 @@ const Issues = () => {
           location: issue.location,
           category: issue.category,
           image: issue.image || "https://images.unsplash.com/photo-1604357209793-fca5dca89f97?q=80&w=800&auto=format&fit=crop", // Default image if none
+          images: issue.images || (issue.image ? [issue.image] : []), // Multiple images support
           date: formatDate(issue.created_at),
           commentsCount: issue.comments_count || 0,
           volunteersCount: issue.volunteers_count || 0,
@@ -231,6 +232,7 @@ const Issues = () => {
                 location: newIssue.location,
                 category: newIssue.category,
                 image: newIssue.image || "https://images.unsplash.com/photo-1604357209793-fca5dca89f97?q=80&w=800&auto=format&fit=crop",
+                images: newIssue.images || (newIssue.image ? [newIssue.image] : []), // Multiple images support
                 date: formatDate(newIssue.created_at),
                 commentsCount: newIssue.comments_count || 0,
                 volunteersCount: newIssue.volunteers_count || 0,

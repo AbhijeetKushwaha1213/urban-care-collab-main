@@ -317,7 +317,7 @@ export default function ReportIssuePage() {
         }
       }
 
-      // Prepare issue data with media information
+      // Prepare issue data with multiple images support
       const issueData = {
         title: title,
         description: description,
@@ -326,6 +326,7 @@ export default function ReportIssuePage() {
         longitude: longitude,
         category: categoryMap[category] || "Other",
         image: imageUrls.length > 0 ? imageUrls[0] : null, // Primary image (first uploaded image)
+        // images: imageUrls.length > 0 ? imageUrls : null, // TEMPORARILY COMMENTED - Uncomment after schema cache refresh
         created_by: currentUser.id,
         status: 'reported',
         comments_count: 0,
