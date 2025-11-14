@@ -13,13 +13,22 @@ export const validateAuthorityAccessCode = async (accessCode: string): Promise<b
     // Get the configured access code from environment variables
     const validCode = import.meta.env.VITE_AUTHORITY_ACCESS_CODE;
     
+    console.log('🔍 Access Code Validation Debug:');
+    console.log('  - Input code:', accessCode);
+    console.log('  - Input length:', accessCode.length);
+    console.log('  - Expected code:', validCode);
+    console.log('  - Expected length:', validCode?.length);
+    console.log('  - Match:', accessCode === validCode);
+    
     if (!validCode) {
-      console.error('Authority access code not configured in environment variables');
+      console.error('❌ Authority access code not configured in environment variables');
       return false;
     }
     
     // Perform secure comparison
-    return accessCode === validCode;
+    const isValid = accessCode === validCode;
+    console.log(isValid ? '✅ Access code is VALID' : '❌ Access code is INVALID');
+    return isValid;
   } catch (error) {
     console.error('Error validating authority access code:', error);
     return false;
